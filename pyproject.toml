@@ -6,7 +6,9 @@ authors = [
     { name = "genos-ux", email = "mrhihihi59@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.162.0",
+]
 
 [project.scripts]
 nabora-crm = "nabora_crm:main"
