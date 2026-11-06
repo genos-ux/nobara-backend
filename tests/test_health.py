@@ -40,13 +40,13 @@ class TestOpenAPI:
         assert schema["info"]["version"] == "0.1.0"
 
     def test_auth_routes_in_schema(self, client):
-        """All auth endpoints are registered in the OpenAPI schema."""
+        """All auth endpoints are registered in the OpenAPI schema under /v1."""
         schema = client.get("/openapi.json").json()
         paths = schema["paths"]
-        assert "/auth/login" in paths
-        assert "/auth/logout" in paths
-        assert "/auth/refresh" in paths
-        assert "/auth/me" in paths
+        assert "/v1/auth/login" in paths
+        assert "/v1/auth/logout" in paths
+        assert "/v1/auth/refresh" in paths
+        assert "/v1/auth/me" in paths
 
 
 class TestImports:
@@ -100,3 +100,56 @@ class TestDatabase:
         assert "users" in table_names
         assert "persons" in table_names
         assert "activities" in table_names
+
+
+class TestDomainExceptions:
+    """Verify domain exceptions are mapped to correct HTTP responses."""
+
+    def test_bad_login_returns_401(self, client):
+        """AuthenticationError maps to 401 with WWW-Authenticate header."""
+        response = client.post(
+            "/v1/auth/login",
+            json={"email": "nobody@test.test", "password": "wrong"},
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password"
+        assert response.headers.get("www-authenticate") == "Bearer"
+
+    def test_missing_token_returns_401(self, client):
+        """No bearer token returns 401."""
+        response = client.get("/v1/auth/me")
+        assert response.status_code == 401
+
+    def test_invalid_token_returns_401(self, client):
+        """InvalidTokenError maps to 401."""
+        response = client.get(
+            "/v1/auth/me",
+            headers={"Authorization": "Bearer invalid.token.here"},
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Could not validate credentials"
+
+    def test_invalid_refresh_token_returns_401(self, client):
+        """InvalidRefreshTokenError maps to 401."""
+        response = client.post(
+            "/v1/auth/refresh",
+            json={"refresh_token": "invalid.token.here"},
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired refresh token"
+
+    def test_domain_exceptions_importable(self):
+        """All domain exception classes can be imported."""
+        from nabora_crm.core.exceptions import (
+            AdminPrivilegeRequiredError,
+            AuthenticationError,
+            DomainError,
+            InactiveUserError,
+            InvalidRefreshTokenError,
+            InvalidTokenError,
+        )
+        assert issubclass(AuthenticationError, DomainError)
+        assert issubclass(InactiveUserError, DomainError)
+        assert issubclass(InvalidTokenError, DomainError)
+        assert issubclass(InvalidRefreshTokenError, DomainError)
+        assert issubclass(AdminPrivilegeRequiredError, DomainError)

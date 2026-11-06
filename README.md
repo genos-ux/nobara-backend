@@ -12,12 +12,17 @@ nobara-backend/
 │   ├── core/                # Cross-cutting concerns
 │   │   ├── config.py        # Pydantic Settings (environment variables)
 │   │   ├── security.py      # Password hashing (bcrypt) + JWT create/decode
+│   │   ├── exceptions.py     # Domain exception hierarchy
 │   │   └── logging.py       # Centralized logging setup
 │   │
 │   ├── db/                  # Database layer
 │   │   ├── base.py          # SQLAlchemy DeclarativeBase
 │   │   ├── session.py       # Engine, SessionLocal, get_db() dependency
 │   │   └── init_db.py       # Table creation + admin user seeding
+│   │
+│   ├── api/                 # API versioning
+│   │   └── v1/
+│   │       └── router.py    # Aggregates all v1 module routers
 │   │
 │   ├── modules/             # Feature modules (domain-driven)
 │   │   ├── auth/             # Authentication feature
@@ -42,6 +47,12 @@ nobara-backend/
 │   ├── conftest.py          # TestClient fixture, SQLite test DB
 │   └── test_health.py       # Endpoint, OpenAPI, import, and model registration tests
 │
+├── migrations/              # Alembic migrations
+│   ├── env.py               # Migration environment (reads config from settings)
+│   ├── script.py.mako       # Migration template
+│   └── versions/            # Generated migration scripts
+│
+├── alembic.ini              # Alembic configuration
 ├── .env.example             # Environment variable template
 ├── pyproject.toml           # Project config + dependencies (uv)
 └── uv.lock                  # Locked dependency versions
@@ -76,10 +87,10 @@ No circular dependencies exist. Each layer depends only on layers below it.
 |--------|------|------|-------------|
 | GET | `/` | None | Welcome message |
 | GET | `/health` | None | Health check |
-| POST | `/auth/login` | None | Authenticate, return access + refresh tokens |
-| POST | `/auth/logout` | Bearer | Logout (client discards tokens) |
-| POST | `/auth/refresh` | Refresh token | Issue new access token |
-| GET | `/auth/me` | Bearer | Current user profile |
+| POST | `/v1/auth/login` | None | Authenticate, return access + refresh tokens |
+| POST | `/v1/auth/logout` | Bearer | Logout (client discards tokens) |
+| POST | `/v1/auth/refresh` | Refresh token | Issue new access token |
+| GET | `/v1/auth/me` | Bearer | Current user profile |
 | * | `/admin/*` | Session (admin) | SQLAdmin dashboard |
 
 Interactive API docs available at `/docs` (Swagger) and `/redoc` (ReDoc) when running.
@@ -130,20 +141,45 @@ uv run pytest
 
 Tests use an in-process SQLite database — no PostgreSQL required.
 
+### Database migrations
+
+Migrations are managed with Alembic. The initial migration captures the current schema (users, persons, activities).
+
+**Apply migrations** (run before starting the app in production):
+```bash
+uv run alembic upgrade head
+```
+
+**Create a new migration** after model changes:
+```bash
+uv run alembic revision --autogenerate -m "description of change"
+```
+
+**Rollback one migration:**
+```bash
+uv run alembic downgrade -1
+```
+
+> **Note:** The application lifespan still calls `Base.metadata.create_all()` as a safety net for fresh databases. Once you run `alembic upgrade head` in production, the tables already exist and `create_all` is a no-op. You can optionally remove the `create_all` call from `db/init_db.py` once all environments are migrated.
+
 ## Render Deployment
 
 The application is deployed on Render via Git auto-deploy from the `main` branch.
 
-**Start command (configured in Render dashboard):**
+**Build command:**
 ```
-uvicorn nabora_crm.main:app --host 0.0.0.0 --port $PORT
+uv sync
 ```
 
-The start command is unchanged by this refactor. All environment variables, database connections, and endpoint URLs remain compatible.
+**Start command (configured in Render dashboard):**
+```
+uv run alembic upgrade head && uvicorn nabora_crm.main:app --host 0.0.0.0 --port $PORT
+```
+
+The start command now runs migrations before starting the server. All environment variables and database connections remain compatible.
+
+> **Note:** API endpoints are now prefixed with `/v1` (e.g. `/v1/auth/login` instead of `/auth/login`). The root (`/`), health (`/health`), and admin (`/admin/*`) paths are unversioned. Update any frontend clients to use the new paths.
 
 ## Technical Debt & Recommendations
 
-- **Alembic migrations** — The project uses `Base.metadata.create_all()` for schema management. Consider adding Alembic for production-safe schema migrations.
 - **CRM API endpoints** — The CRM module has models but no API endpoints yet. When needed, add `router.py`, `schemas.py`, `service.py`, and `repository.py` following the auth module pattern.
-- **Domain exceptions** — Services currently raise `HTTPException` directly. For stricter layer separation, introduce domain exceptions in services and map them to HTTP responses in a FastAPI exception handler.
-- **API versioning** — No `/v1/` prefix is used. If breaking changes are anticipated, consider introducing versioned routers.
