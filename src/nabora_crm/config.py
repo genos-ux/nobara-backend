@@ -1,4 +1,9 @@
+import logging
+
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("nabora_crm")
 
 
 class Settings(BaseSettings):
@@ -10,14 +15,25 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "sqlite:///./nabora_crm.db"
+    # Database
+    DATABASE_URL: str
 
     # JWT settings
-    SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production"
-    REFRESH_SECRET_KEY: str = "your-super-secret-refresh-key-change-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    SECRET_KEY: str
+    REFRESH_SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    REFRESH_TOKEN_EXPIRE_DAYS: int
+
+    # Admin account
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
 
 
-settings = Settings()
+try:
+    settings = Settings()  # type: ignore[call-arg]
+except ValidationError as exc:
+    for error in exc.errors():
+        field = error.get("loc", ["unknown"])[0]
+        logger.error("Missing required env variable: %s", field)
+    raise
