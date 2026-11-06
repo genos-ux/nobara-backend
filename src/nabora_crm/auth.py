@@ -19,7 +19,7 @@ from nabora_crm.security import (
 
 logger = logging.getLogger("nabora_crm")
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = HTTPBearer()
 
