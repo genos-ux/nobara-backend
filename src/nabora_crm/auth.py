@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ logger = logging.getLogger("nabora_crm")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = HTTPBearer()
 
 
 def get_db():
@@ -37,10 +37,11 @@ def get_db():
 # ---------------------------------------------------------------------------
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """Decode the JWT token and return the current authenticated user."""
+    token = credentials.credentials
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -127,7 +128,7 @@ def login(
 
 @router.post("/logout")
 def logout(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
 ) -> dict[str, str]:
     """Logout the current user. Client should discard both tokens."""
     return {
