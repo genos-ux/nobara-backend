@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully.")
 
-    # Seed demo users
+    # Seed admin account
     seed_users()
 
     yield

@@ -87,6 +87,17 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class TokenRequest(BaseModel):
+    refresh_token: str
+
+
+class UserProfile(BaseModel):
+    id: int
+    email: str
+    role: str
+    is_active: bool
+
+
 @router.post("/login")
 def login(
     credentials: LoginRequest,
@@ -112,6 +123,29 @@ def login(
         "access_token": create_access_token(token_data),
         "refresh_token": create_refresh_token(token_data),
     }
+
+
+@router.post("/logout")
+def logout(
+    token: str = Depends(oauth2_scheme),
+) -> dict[str, str]:
+    """Logout the current user. Client should discard both tokens."""
+    return {
+        "message": "Successfully logged out",
+    }
+
+
+@router.get("/me", response_model=UserProfile)
+def get_profile(
+    current_user: User = Depends(get_current_user),
+) -> UserProfile:
+    """Return the current authenticated user's profile."""
+    return UserProfile(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role.value,
+        is_active=current_user.is_active,
+    )
 
 
 # ---------------------------------------------------------------------------
