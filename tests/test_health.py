@@ -331,3 +331,95 @@ class TestRBAC:
         )
         assert response.status_code == 400
         assert "does not exist" in response.json()["detail"]
+
+
+class TestUserManagement:
+    """Verify user management endpoints with permission-based access control."""
+
+    def _admin_headers(self, client):
+        """Login as admin and return auth headers."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    def _create_test_user(self, client, email="testuser@example.com"):
+        """Create a nutritionist user via DB and return its ID."""
+        from nabora_crm.db.session import SessionLocal
+        from nabora_crm.modules.users.models import User
+        from nabora_crm.modules.roles.models import Role
+        from nabora_crm.core.security import hash_password
+
+        db = SessionLocal()
+        try:
+            # Delete any existing user with this email (from previous tests)
+            existing = db.query(User).filter(User.email == email).first()
+            if existing:
+                db.delete(existing)
+                db.commit()
+
+            role = db.query(Role).filter(Role.name == "nutritionist").first()
+            user = User(
+                email=email,
+                hashed_password=hash_password("testpass123"),
+                role_id=role.id,
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return str(user.id)
+        finally:
+            db.close()
+
+    def test_admin_can_get_user(self, client):
+        """Admin can fetch a user by ID."""
+        headers = self._admin_headers(client)
+        me = client.get("/v1/auth/me", headers=headers).json()
+        user_id = me["id"]
+
+        response = client.get(f"/v1/users/{user_id}", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == "admin@test.example"
+        assert data["role"] == "admin"
+        assert data["is_active"] is True
+
+    def test_deactivate_user(self, client):
+        """Admin can deactivate a user."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="deactivate@example.com")
+
+        response = client.patch(f"/v1/users/{user_id}/deactivate", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["is_active"] is False
+
+    def test_reactivate_user(self, client):
+        """Admin can reactivate a deactivated user."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="reactivate@example.com")
+
+        # Deactivate first
+        client.patch(f"/v1/users/{user_id}/deactivate", headers=headers)
+
+        # Then reactivate
+        response = client.patch(f"/v1/users/{user_id}/activate", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["is_active"] is True
+
+    def test_get_nonexistent_user(self, client):
+        """Getting a non-existent user returns 400."""
+        headers = self._admin_headers(client)
+        fake_id = "00000000-0000-0000-0000-000000000000"
+
+        response = client.get(f"/v1/users/{fake_id}", headers=headers)
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"]
+
+    def test_users_endpoints_require_auth(self, client):
+        """Unauthenticated requests to users endpoints return 401."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        assert client.get(f"/v1/users/{fake_id}").status_code == 401
+        assert client.patch(f"/v1/users/{fake_id}/deactivate").status_code == 401
+        assert client.patch(f"/v1/users/{fake_id}/activate").status_code == 401

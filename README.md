@@ -34,7 +34,10 @@ nobara-backend/
 │   │   │
 │   │   ├── users/           # User domain
 │   │   │   ├── models.py          # User ORM model (role_id FK)
-│   │   │   └── repository.py      # Database queries (get_user_by_email, create_user)
+│   │   │   ├── schemas.py         # Pydantic schemas for user responses
+│   │   │   ├── repository.py      # Database queries (get_user_by_email, get_user_by_id)
+│   │   │   ├── service.py         # Business logic (get_user_or_404, set_user_active)
+│   │   │   └── router.py          # User management endpoints (get, deactivate, activate)
 │   │   │
 │   │   ├── roles/           # RBAC domain
 │   │   │   ├── models.py          # Role, Permission, RolePermission junction
@@ -99,6 +102,9 @@ No circular dependencies exist. Each layer depends only on layers below it.
 | POST | `/v1/auth/logout` | Bearer | Logout (client discards tokens) |
 | POST | `/v1/auth/refresh` | Refresh token | Issue new access token |
 | GET | `/v1/auth/me` | Bearer | Current user profile (role + permissions) |
+| GET | `/v1/users/{id}` | `users:read` | Get a user by ID |
+| PATCH | `/v1/users/{id}/deactivate` | `users:write` | Deactivate a user account |
+| PATCH | `/v1/users/{id}/activate` | `users:write` | Reactivate a user account |
 | GET | `/v1/roles` | `roles:read` | List all roles with permissions |
 | POST | `/v1/roles` | `roles:write` | Create a new role |
 | PUT | `/v1/roles/{id}` | `roles:write` | Update a role (name, description, permissions) |
