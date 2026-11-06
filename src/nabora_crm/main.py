@@ -5,6 +5,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqladmin import Admin, ModelView
 from starlette.middleware.sessions import SessionMiddleware
@@ -48,6 +49,15 @@ app = FastAPI(
 
 # Session middleware for sqladmin authentication
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router)
 

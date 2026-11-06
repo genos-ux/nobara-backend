@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str
     ADMIN_PASSWORD: str
 
+    # CORS (comma-separated origins)
+    CORS_ORIGINS: str = ""
+
 
 try:
     settings = Settings()  # type: ignore[call-arg]
