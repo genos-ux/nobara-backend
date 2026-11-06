@@ -1,14 +1,18 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
 from sqlalchemy import text
 from sqladmin import Admin, ModelView
+from starlette.middleware.sessions import SessionMiddleware
 
+from nabora_crm.admin import admin_auth
 from nabora_crm.auth import router as auth_router
 from nabora_crm.auth import seed_users
+from nabora_crm.config import settings
 from nabora_crm.database import engine
 from nabora_crm.models import Activity, Base, Person, User
 
@@ -42,10 +46,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Session middleware for sqladmin authentication
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
 app.include_router(auth_router)
 
 # SQLAdmin dashboard
-admin = Admin(app=app, engine=engine, base_url="/admin", title="Nabora CRM Admin")
+templates_dir = str(Path(__file__).parent / "templates")
+
+admin = Admin(
+    app=app,
+    engine=engine,
+    base_url="/admin",
+    title="Nabora CRM Admin",
+    authentication_backend=admin_auth,
+    templates_dir=templates_dir,
+)
 
 
 class UserAdmin(ModelView, model=User):
