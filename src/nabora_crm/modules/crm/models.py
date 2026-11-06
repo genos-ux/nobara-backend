@@ -2,17 +2,9 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-class Role(enum.Enum):
-    admin = "admin"
-    nutritionist = "nutritionist"
-    fitness = "fitness"
+from nabora_crm.db.base import Base
 
 
 class Stage(enum.Enum):
@@ -21,16 +13,6 @@ class Stage(enum.Enum):
     in_conversation = "In conversation"
     client = "Client"
     not_a_fit = "Not a fit"
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[Role] = mapped_column(Enum(Role), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class Person(Base):

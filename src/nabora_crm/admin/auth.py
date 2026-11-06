@@ -1,11 +1,11 @@
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
 
-from nabora_crm.config import settings
-from nabora_crm.database import SessionLocal
-from nabora_crm.models import Role, User
-from nabora_crm.security import verify_password
+from nabora_crm.core.config import settings
+from nabora_crm.core.security import verify_password
+from nabora_crm.db.session import SessionLocal
+from nabora_crm.modules.users.models import Role
+from nabora_crm.modules.users.repository import get_user_by_email
 
 
 class AdminAuth(AuthenticationBackend):
@@ -24,7 +24,7 @@ class AdminAuth(AuthenticationBackend):
 
         db = SessionLocal()
         try:
-            user = db.query(User).filter(User.email == email).first()
+            user = get_user_by_email(db, email)
             if (
                 not user
                 or not verify_password(password, user.hashed_password)
@@ -49,7 +49,7 @@ class AdminAuth(AuthenticationBackend):
 
         db = SessionLocal()
         try:
-            user = db.query(User).filter(User.email == admin_user).first()
+            user = get_user_by_email(db, admin_user)
             if not user or not user.is_active or user.role != Role.admin:
                 request.session.clear()
                 return False

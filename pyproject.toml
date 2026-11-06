@@ -1,7 +1,7 @@
 [project]
 name = "nabora-crm"
 version = "0.1.0"
-description = "Add your description here"
+description = "Nabora CRM API — modular FastAPI backend for nutritionist/fitness practice management."
 authors = [
     { name = "genos-ux", email = "mrhihihi59@gmail.com" }
 ]
@@ -20,6 +20,12 @@ dependencies = [
     "sqladmin>=0.32.0",
     "sqlalchemy>=2.1.8",
     "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.28",
 ]
 
 [project.scripts]

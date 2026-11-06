@@ -3,7 +3,7 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from nabora_crm.config import settings
+from nabora_crm.core.config import settings
 
 # Normalize postgres:// to postgresql+psycopg:// for SQLAlchemy
 db_url = settings.DATABASE_URL
