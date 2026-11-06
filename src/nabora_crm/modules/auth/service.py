@@ -28,7 +28,7 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
 
 def create_token_pair(user: User) -> dict[str, str]:
     """Create access and refresh tokens for a user."""
-    token_data = {"sub": user.email, "role": user.role.value}
+    token_data = {"sub": user.email, "role": user.role.name}
     return {
         "access_token": create_access_token(token_data),
         "refresh_token": create_refresh_token(token_data),
@@ -50,5 +50,5 @@ def refresh_access_token(db: Session, refresh_token: str) -> dict[str, str]:
     if user is None or not user.is_active:
         raise InvalidRefreshTokenError("Invalid or expired refresh token")
 
-    token_data = {"sub": user.email, "role": user.role.value}
+    token_data = {"sub": user.email, "role": user.role.name}
     return {"access_token": create_access_token(token_data)}

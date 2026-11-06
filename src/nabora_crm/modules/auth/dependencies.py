@@ -1,16 +1,20 @@
+from collections.abc import Callable
+from typing import Annotated
+
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import (
-    AdminPrivilegeRequiredError,
     InactiveUserError,
     InvalidTokenError,
+    PermissionDeniedError,
 )
 from nabora_crm.core.security import decode_access_token
 from nabora_crm.db.session import get_db
-from nabora_crm.modules.users.models import Role, User
+from nabora_crm.modules.roles.repository import get_user_permissions
+from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import get_user_by_email
 
 oauth2_scheme = HTTPBearer()
@@ -39,10 +43,28 @@ def get_current_user(
     return user
 
 
-def get_current_admin_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    """Ensure the current user has the admin role."""
-    if current_user.role != Role.admin:
-        raise AdminPrivilegeRequiredError("Admin privileges required")
-    return current_user
+def require_permission(permission: str) -> Callable:
+    """Return a FastAPI dependency that checks the user has the given permission.
+
+    Usage in a router:
+
+        @router.get("/users", dependencies=[Depends(require_permission("users:read"))])
+        def list_users(...): ...
+
+    or as a parameter dependency to get the user object:
+
+        def list_users(_user=Depends(require_permission("users:read"))): ...
+    """
+
+    def _check(
+        current_user: Annotated[User, Depends(get_current_user)],
+        db: Session = Depends(get_db),
+    ) -> User:
+        user_perms = set(get_user_permissions(db, current_user.role_id))
+        if permission not in user_perms:
+            raise PermissionDeniedError(
+                f"Permission '{permission}' is required to perform this action"
+            )
+        return current_user
+
+    return _check

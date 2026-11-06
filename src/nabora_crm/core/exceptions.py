@@ -27,3 +27,7 @@ class InvalidRefreshTokenError(DomainError):
 
 class AdminPrivilegeRequiredError(DomainError):
     """Raised when a non-admin user attempts an admin-only action."""
+
+
+class PermissionDeniedError(DomainError):
+    """Raised when a user lacks a required permission."""

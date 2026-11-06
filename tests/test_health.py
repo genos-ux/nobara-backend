@@ -1,7 +1,7 @@
-"""Tests for basic endpoint health and route registration.
+"""Tests for endpoints, route registration, OpenAPI, RBAC, and domain exceptions.
 
 These tests verify that the refactored application starts correctly,
-all routes are registered, and the OpenAPI schema is generated.
+all routes are registered, RBAC seeding works, and the OpenAPI schema is generated.
 """
 
 import importlib
@@ -48,6 +48,13 @@ class TestOpenAPI:
         assert "/v1/auth/refresh" in paths
         assert "/v1/auth/me" in paths
 
+    def test_roles_routes_in_schema(self, client):
+        """All roles endpoints are registered in the OpenAPI schema under /v1."""
+        schema = client.get("/openapi.json").json()
+        paths = schema["paths"]
+        assert "/v1/roles" in paths
+        assert "/v1/roles/permissions" in paths
+
 
 class TestImports:
     """Verify all module imports resolve without errors."""
@@ -90,6 +97,17 @@ class TestImports:
         from nabora_crm.admin.views import create_admin
         assert callable(create_admin)
 
+    def test_import_roles_router(self):
+        """Roles router imports and has correct prefix."""
+        from nabora_crm.modules.roles.router import router
+        assert router.prefix == "/roles"
+
+    def test_import_permissions(self):
+        """Core permissions module imports with expected constants."""
+        from nabora_crm.core.permissions import ALL_PERMISSIONS, ADMIN_ACCESS
+        assert ADMIN_ACCESS in ALL_PERMISSIONS
+        assert len(ALL_PERMISSIONS) == 10
+
 
 class TestDatabase:
     """Verify database models are registered."""
@@ -100,6 +118,9 @@ class TestDatabase:
         assert "users" in table_names
         assert "persons" in table_names
         assert "activities" in table_names
+        assert "roles" in table_names
+        assert "permissions" in table_names
+        assert "role_permissions" in table_names
 
 
 class TestDomainExceptions:
@@ -147,9 +168,166 @@ class TestDomainExceptions:
             InactiveUserError,
             InvalidRefreshTokenError,
             InvalidTokenError,
+            PermissionDeniedError,
         )
         assert issubclass(AuthenticationError, DomainError)
         assert issubclass(InactiveUserError, DomainError)
         assert issubclass(InvalidTokenError, DomainError)
         assert issubclass(InvalidRefreshTokenError, DomainError)
         assert issubclass(AdminPrivilegeRequiredError, DomainError)
+        assert issubclass(PermissionDeniedError, DomainError)
+
+
+class TestRBAC:
+    """Verify RBAC seeding, roles API, and permission-based access control."""
+
+    def test_admin_login_works(self, client):
+        """The seeded admin user can log in."""
+        response = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        assert response.status_code == 200
+        assert "access_token" in response.json()
+
+    def test_admin_profile_has_permissions(self, client):
+        """The /me endpoint returns the admin's role and permissions."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.get(
+            "/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["role"] == "admin"
+        assert "admin:access" in data["permissions"]
+        assert "roles:read" in data["permissions"]
+        assert "roles:write" in data["permissions"]
+
+    def test_roles_list_requires_auth(self, client):
+        """Unauthenticated requests to /v1/roles return 401."""
+        response = client.get("/v1/roles")
+        assert response.status_code == 401
+
+    def test_admin_can_list_roles(self, client):
+        """Admin user can list all roles."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.get(
+            "/v1/roles",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        roles = response.json()
+        role_names = [r["name"] for r in roles]
+        assert "admin" in role_names
+        assert "nutritionist" in role_names
+        assert "fitness" in role_names
+
+    def test_admin_can_list_permissions(self, client):
+        """Admin user can list all permissions."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.get(
+            "/v1/roles/permissions",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        perms = response.json()
+        perm_names = [p["name"] for p in perms]
+        assert "admin:access" in perm_names
+        assert "users:read" in perm_names
+        assert "crm:read" in perm_names
+
+    def test_admin_can_create_role(self, client):
+        """Admin user can create a new role with permissions."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.post(
+            "/v1/roles",
+            json={
+                "name": "manager",
+                "description": "CRM manager",
+                "permission_names": ["crm:read", "crm:write", "crm:delete"],
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "manager"
+        assert data["is_system"] is False
+        perm_names = [p["name"] for p in data["permissions"]]
+        assert "crm:read" in perm_names
+        assert "crm:write" in perm_names
+        assert "crm:delete" in perm_names
+
+    def test_admin_cannot_delete_system_role(self, client):
+        """System roles cannot be deleted."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        # Get the admin role's ID
+        roles = client.get(
+            "/v1/roles",
+            headers={"Authorization": f"Bearer {token}"},
+        ).json()
+        admin_role = [r for r in roles if r["name"] == "admin"][0]
+
+        response = client.delete(
+            f"/v1/roles/{admin_role['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 400
+        assert "System roles cannot be deleted" in response.json()["detail"]
+
+    def test_duplicate_role_name_rejected(self, client):
+        """Creating a role with an existing name returns 400."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.post(
+            "/v1/roles",
+            json={"name": "admin", "permission_names": []},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"]
+
+    def test_invalid_permission_name_rejected(self, client):
+        """Creating a role with a non-existent permission returns 400."""
+        login = client.post(
+            "/v1/auth/login",
+            json={"email": "admin@test.example", "password": "testpass123"},
+        )
+        token = login.json()["access_token"]
+
+        response = client.post(
+            "/v1/roles",
+            json={"name": "badrole", "permission_names": ["nonexistent:perm"]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 400
+        assert "does not exist" in response.json()["detail"]

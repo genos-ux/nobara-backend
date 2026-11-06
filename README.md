@@ -13,12 +13,13 @@ nobara-backend/
 │   │   ├── config.py        # Pydantic Settings (environment variables)
 │   │   ├── security.py      # Password hashing (bcrypt) + JWT create/decode
 │   │   ├── exceptions.py     # Domain exception hierarchy
+│   │   ├── permissions.py    # RBAC permission constants
 │   │   └── logging.py       # Centralized logging setup
 │   │
 │   ├── db/                  # Database layer
 │   │   ├── base.py          # SQLAlchemy DeclarativeBase
 │   │   ├── session.py       # Engine, SessionLocal, get_db() dependency
-│   │   └── init_db.py       # Table creation + admin user seeding
+│   │   └── init_db.py       # Table creation + RBAC seeding + admin user seeding
 │   │
 │   ├── api/                 # API versioning
 │   │   └── v1/
@@ -29,11 +30,18 @@ nobara-backend/
 │   │   │   ├── router.py          # 4 endpoints: login, logout, refresh, me
 │   │   │   ├── schemas.py         # Pydantic request/response models
 │   │   │   ├── service.py          # Business logic (authenticate, token creation)
-│   │   │   └── dependencies.py    # get_current_user, get_current_admin_user
+│   │   │   └── dependencies.py    # get_current_user, require_permission()
 │   │   │
 │   │   ├── users/           # User domain
-│   │   │   ├── models.py          # User ORM model, Role enum
+│   │   │   ├── models.py          # User ORM model (role_id FK)
 │   │   │   └── repository.py      # Database queries (get_user_by_email, create_user)
+│   │   │
+│   │   ├── roles/           # RBAC domain
+│   │   │   ├── models.py          # Role, Permission, RolePermission junction
+│   │   │   ├── schemas.py         # Pydantic schemas for role/permission CRUD
+│   │   │   ├── repository.py      # CRUD for roles and permissions
+│   │   │   ├── service.py         # Business logic (create, update, delete roles)
+│   │   │   └── router.py          # Admin-only endpoints to manage roles/permissions
 │   │   │
 │   │   └── crm/             # CRM domain
 │   │       └── models.py          # Person, Activity ORM models, Stage enum
@@ -90,7 +98,12 @@ No circular dependencies exist. Each layer depends only on layers below it.
 | POST | `/v1/auth/login` | None | Authenticate, return access + refresh tokens |
 | POST | `/v1/auth/logout` | Bearer | Logout (client discards tokens) |
 | POST | `/v1/auth/refresh` | Refresh token | Issue new access token |
-| GET | `/v1/auth/me` | Bearer | Current user profile |
+| GET | `/v1/auth/me` | Bearer | Current user profile (role + permissions) |
+| GET | `/v1/roles` | `roles:read` | List all roles with permissions |
+| POST | `/v1/roles` | `roles:write` | Create a new role |
+| PUT | `/v1/roles/{id}` | `roles:write` | Update a role (name, description, permissions) |
+| DELETE | `/v1/roles/{id}` | `roles:delete` | Delete a non-system role |
+| GET | `/v1/roles/permissions` | `roles:read` | List all available permissions |
 | * | `/admin/*` | Session (admin) | SQLAdmin dashboard |
 
 Interactive API docs available at `/docs` (Swagger) and `/redoc` (ReDoc) when running.

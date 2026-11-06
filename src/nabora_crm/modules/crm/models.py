@@ -1,7 +1,8 @@
 import enum
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nabora_crm.db.base import Base
@@ -18,7 +19,7 @@ class Stage(enum.Enum):
 class Person(Base):
     __tablename__ = "persons"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     stage: Mapped[Stage] = mapped_column(Enum(Stage), nullable=False, default=Stage.new)
@@ -39,8 +40,8 @@ class Person(Base):
 class Activity(Base):
     __tablename__ = "activities"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    person_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("persons.id", ondelete="CASCADE"), nullable=False,
     )
     staff_name: Mapped[str | None] = mapped_column(String, nullable=True)

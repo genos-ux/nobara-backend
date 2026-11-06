@@ -16,6 +16,7 @@ from nabora_crm.db.base import Base
 # Import all models so they are registered with Base.metadata
 import nabora_crm.modules.users.models  # noqa: F401
 import nabora_crm.modules.crm.models  # noqa: F401
+import nabora_crm.modules.roles.models  # noqa: F401
 
 config = context.config
 

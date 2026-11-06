@@ -18,6 +18,7 @@ from nabora_crm.core.exceptions import (
     InactiveUserError,
     InvalidRefreshTokenError,
     InvalidTokenError,
+    PermissionDeniedError,
 )
 from nabora_crm.core.logging import setup_logging
 from nabora_crm.db.init_db import init_db
@@ -96,6 +97,14 @@ async def handle_inactive_user_error(_: Request, exc: InactiveUserError):
 
 @app.exception_handler(AdminPrivilegeRequiredError)
 async def handle_admin_privilege_required_error(_: Request, exc: AdminPrivilegeRequiredError):
+    return JSONResponse(
+        status_code=403,
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(PermissionDeniedError)
+async def handle_permission_denied_error(_: Request, exc: PermissionDeniedError):
     return JSONResponse(
         status_code=403,
         content={"detail": str(exc)},

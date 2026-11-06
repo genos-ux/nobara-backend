@@ -1,6 +1,8 @@
+import uuid
+
 from sqlalchemy.orm import Session
 
-from nabora_crm.modules.users.models import Role, User
+from nabora_crm.modules.users.models import User
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -13,14 +15,14 @@ def create_user(
     *,
     email: str,
     hashed_password: str,
-    role: Role,
+    role_id: uuid.UUID,
     is_active: bool = True,
 ) -> User:
     """Create and commit a new user. Rolls back on error."""
     user = User(
         email=email,
         hashed_password=hashed_password,
-        role=role,
+        role_id=role_id,
         is_active=is_active,
     )
     db.add(user)

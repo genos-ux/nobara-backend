@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel
 
 
@@ -11,7 +13,8 @@ class TokenRequest(BaseModel):
 
 
 class UserProfile(BaseModel):
-    id: int
+    id: uuid.UUID
     email: str
     role: str
+    permissions: list[str]
     is_active: bool

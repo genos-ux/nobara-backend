@@ -22,11 +22,15 @@ from nabora_crm.main import app
 # Ensure all models are registered with Base.metadata
 import nabora_crm.modules.users.models  # noqa: F401
 import nabora_crm.modules.crm.models  # noqa: F401
+import nabora_crm.modules.roles.models  # noqa: F401
 
 
 @pytest.fixture(scope="session")
 def client():
-    """Create a TestClient with a SQLite test database."""
+    """Create a TestClient with a SQLite test database.
+
+    The app lifespan seeds RBAC data (permissions, roles, admin user) on startup.
+    """
     Base.metadata.create_all(bind=engine)
     with TestClient(app) as c:
         yield c

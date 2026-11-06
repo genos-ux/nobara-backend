@@ -52,6 +52,7 @@ def get_profile(
     return UserProfile(
         id=current_user.id,
         email=current_user.email,
-        role=current_user.role.value,
+        role=current_user.role.name,
+        permissions=current_user.permissions,
         is_active=current_user.is_active,
     )
