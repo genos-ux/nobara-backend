@@ -13,6 +13,7 @@ from nabora_crm.security import (
     create_access_token,
     create_refresh_token,
     decode_access_token,
+    decode_refresh_token,
     hash_password,
     verify_password,
 )
@@ -133,6 +134,36 @@ def logout(
     """Logout the current user. Client should discard both tokens."""
     return {
         "message": "Successfully logged out",
+    }
+
+
+@router.post("/refresh")
+def refresh_token(
+    request: TokenRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Issue a new access token using a valid refresh token."""
+    credentials_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token",
+    )
+    try:
+        payload = decode_refresh_token(request.refresh_token)
+        email: str | None = payload.get("sub")
+        token_type: str | None = payload.get("type")
+        if email is None or token_type != "refresh":
+            raise credentials_exc
+    except JWTError:
+        raise credentials_exc
+
+    user = db.query(User).filter(User.email == email).first()
+    if user is None or not user.is_active:
+        raise credentials_exc
+
+    token_data = {"sub": user.email, "role": user.role.value}
+
+    return {
+        "access_token": create_access_token(token_data),
     }
 
 
