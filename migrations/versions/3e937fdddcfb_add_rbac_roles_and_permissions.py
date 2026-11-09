@@ -39,8 +39,7 @@ PERMISSIONS = [
 # System roles and their default permissions
 SYSTEM_ROLES = {
     "admin": PERMISSIONS,  # all permissions
-    "nutritionist": ["crm:read", "crm:write"],
-    "fitness": ["crm:read", "crm:write"],
+    "contributor": ["crm:read", "crm:write"],
 }
 
 
@@ -147,7 +146,7 @@ def downgrade() -> None:
         batch_op.add_column(
             sa.Column(
                 'role',
-                sa.Enum('admin', 'nutritionist', 'fitness', name='role'),
+                sa.Enum('admin', 'contributor', name='role'),
                 nullable=True,
             )
         )

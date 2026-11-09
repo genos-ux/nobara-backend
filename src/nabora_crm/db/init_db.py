@@ -14,15 +14,13 @@ logger = logging.getLogger("nabora_crm")
 # Default role -> permission mapping for system roles.
 DEFAULT_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "admin": ALL_PERMISSIONS,
-    "nutritionist": frozenset({"crm:read", "crm:write"}),
-    "fitness": frozenset({"crm:read", "crm:write"}),
+    "contributor": frozenset({"crm:read", "crm:write"}),
 }
 
 # Human-readable descriptions for system roles.
 SYSTEM_ROLE_DESCRIPTIONS: dict[str, str] = {
     "admin": "Full system access",
-    "nutritionist": "Nutritionist — CRM read and write",
-    "fitness": "Fitness coach — CRM read and write",
+    "contributor": "Contributor — CRM read and write",
 }
 
 

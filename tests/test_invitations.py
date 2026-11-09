@@ -35,21 +35,21 @@ def admin_headers(admin_token):
     return {"Authorization": f"Bearer {admin_token}"}
 
 
-def _get_nutritionist_role_id(client, admin_headers):
-    """Fetch the nutritionist role ID via the roles API."""
+def _get_contributor_role_id(client, admin_headers):
+    """Fetch the contributor role ID via the roles API."""
     resp = client.get("/v1/roles", headers=admin_headers)
     assert resp.status_code == 200, resp.text
     roles = resp.json()
     for r in roles:
-        if r["name"] == "nutritionist":
+        if r["name"] == "contributor":
             return r["id"]
-    pytest.fail("nutritionist role not found")
+    pytest.fail("contributor role not found")
 
 
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_invite_user_success(mock_send_email, client, admin_headers):
     """Admin can invite a new user; email is dispatched."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     resp = client.post(
         "/v1/invitations",
@@ -60,14 +60,14 @@ def test_invite_user_success(mock_send_email, client, admin_headers):
     data = resp.json()
     assert data["email"] == "newuser@test.example"
     assert data["is_pending"] is True
-    assert data["role"] == "nutritionist"
+    assert data["role"] == "contributor"
     mock_send_email.assert_called_once()
 
 
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_invite_duplicate_non_pending(mock_send_email, client, admin_headers):
     """Inviting an email that already belongs to an active user fails."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     # First invite
     resp = client.post(
@@ -100,7 +100,7 @@ def test_invite_duplicate_non_pending(mock_send_email, client, admin_headers):
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_invite_unauthenticated(mock_send_email, client):
     """Unauthenticated users cannot invite."""
-    role_id = _get_nutritionist_role_id(
+    role_id = _get_contributor_role_id(
         client,
         {"Authorization": "Bearer " + _get_admin_token_raw(client)},
     )
@@ -122,7 +122,7 @@ def _get_admin_token_raw(client):
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_accept_invitation_success(mock_send_email, client, admin_headers):
     """Invited user can set up their password with a valid token."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     # Invite
     resp = client.post(
@@ -170,7 +170,7 @@ def test_accept_invitation_invalid_token(mock_send_email, client, admin_headers)
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_accept_invitation_already_used(mock_send_email, client, admin_headers):
     """A token that has already been used is rejected."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     # Invite
     resp = client.post(
@@ -202,7 +202,7 @@ def test_accept_invitation_already_used(mock_send_email, client, admin_headers):
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_pending_user_cannot_login(mock_send_email, client, admin_headers):
     """A pending user (hasn't set up password) cannot log in."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     resp = client.post(
         "/v1/invitations",
@@ -222,7 +222,7 @@ def test_pending_user_cannot_login(mock_send_email, client, admin_headers):
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_reinvite_pending_user(mock_send_email, client, admin_headers):
     """Re-inviting a still-pending user does not create a duplicate."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     resp1 = client.post(
         "/v1/invitations",
@@ -247,7 +247,7 @@ def test_reinvite_pending_user(mock_send_email, client, admin_headers):
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
 def test_password_too_short(mock_send_email, client, admin_headers):
     """Password shorter than 8 characters is rejected by validation."""
-    role_id = _get_nutritionist_role_id(client, admin_headers)
+    role_id = _get_contributor_role_id(client, admin_headers)
 
     resp = client.post(
         "/v1/invitations",

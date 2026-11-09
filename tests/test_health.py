@@ -230,8 +230,7 @@ class TestRBAC:
         roles = response.json()
         role_names = [r["name"] for r in roles]
         assert "admin" in role_names
-        assert "nutritionist" in role_names
-        assert "fitness" in role_names
+        assert "contributor" in role_names
 
     def test_admin_can_list_permissions(self, client):
         """Admin user can list all permissions."""
@@ -345,7 +344,7 @@ class TestUserManagement:
         return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
     def _create_test_user(self, client, email="testuser@example.com"):
-        """Create a nutritionist user via DB and return its ID."""
+        """Create a contributor user via DB and return its ID."""
         from nabora_crm.db.session import SessionLocal
         from nabora_crm.modules.users.models import User
         from nabora_crm.modules.roles.models import Role
@@ -359,7 +358,7 @@ class TestUserManagement:
                 db.delete(existing)
                 db.commit()
 
-            role = db.query(Role).filter(Role.name == "nutritionist").first()
+            role = db.query(Role).filter(Role.name == "contributor").first()
             user = User(
                 email=email,
                 hashed_password=hash_password("testpass123"),
