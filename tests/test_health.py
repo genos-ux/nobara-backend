@@ -106,7 +106,7 @@ class TestImports:
         """Core permissions module imports with expected constants."""
         from nabora_crm.core.permissions import ALL_PERMISSIONS, ADMIN_ACCESS
         assert ADMIN_ACCESS in ALL_PERMISSIONS
-        assert len(ALL_PERMISSIONS) == 10
+        assert len(ALL_PERMISSIONS) == 11
 
 
 class TestDatabase:

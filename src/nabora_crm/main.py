@@ -15,6 +15,7 @@ from nabora_crm.core.exceptions import (
     AdminPrivilegeRequiredError,
     AuthenticationError,
     DomainError,
+    EmailSendError,
     InactiveUserError,
     InvalidRefreshTokenError,
     InvalidTokenError,
@@ -107,6 +108,14 @@ async def handle_admin_privilege_required_error(_: Request, exc: AdminPrivilegeR
 async def handle_permission_denied_error(_: Request, exc: PermissionDeniedError):
     return JSONResponse(
         status_code=403,
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(EmailSendError)
+async def handle_email_send_error(_: Request, exc: EmailSendError):
+    return JSONResponse(
+        status_code=502,
         content={"detail": str(exc)},
     )
 

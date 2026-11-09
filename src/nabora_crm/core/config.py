@@ -32,6 +32,20 @@ class Settings(BaseSettings):
     # CORS (comma-separated origins)
     CORS_ORIGINS: str = ""
 
+    # Email / SMTP settings
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    EMAIL_FROM: str = ""
+
+    # Frontend URL (used to build invitation links)
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # Invitation token expiry (days)
+    INVITATION_TOKEN_EXPIRE_DAYS: int = 7
+
 
 try:
     settings = Settings()  # type: ignore[call-arg]

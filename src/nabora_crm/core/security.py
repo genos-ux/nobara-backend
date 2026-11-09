@@ -49,3 +49,18 @@ def decode_access_token(token: str) -> dict[str, Any]:
 def decode_refresh_token(token: str) -> dict[str, Any]:
     """Decode and verify a JWT refresh token. Raises JWTError on failure."""
     return jwt.decode(token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+
+def create_invitation_token(data: dict[str, Any]) -> str:
+    """Create a JWT invitation token with expiration."""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=settings.INVITATION_TOKEN_EXPIRE_DAYS,
+    )
+    to_encode.update({"exp": expire, "type": "invitation"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_invitation_token(token: str) -> dict[str, Any]:
+    """Decode and verify a JWT invitation token. Raises JWTError on failure."""
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

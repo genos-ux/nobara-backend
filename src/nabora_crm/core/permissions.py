@@ -11,6 +11,9 @@ USERS_READ = "users:read"
 USERS_WRITE = "users:write"
 USERS_DELETE = "users:delete"
 
+# Invitation management
+INVITATIONS_WRITE = "invitations:write"
+
 # CRM (persons, activities)
 CRM_READ = "crm:read"
 CRM_WRITE = "crm:write"
@@ -29,6 +32,7 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         USERS_READ,
         USERS_WRITE,
         USERS_DELETE,
+        INVITATIONS_WRITE,
         CRM_READ,
         CRM_WRITE,
         CRM_DELETE,

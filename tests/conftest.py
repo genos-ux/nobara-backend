@@ -11,6 +11,15 @@ os.environ.setdefault("REFRESH_TOKEN_EXPIRE_DAYS", "7")
 os.environ.setdefault("ADMIN_EMAIL", "admin@test.example")
 os.environ.setdefault("ADMIN_PASSWORD", "testpass123")
 os.environ.setdefault("CORS_ORIGINS", "")
+# Email settings — not actually sent in tests; service is mocked.
+os.environ.setdefault("SMTP_HOST", "smtp.test.example")
+os.environ.setdefault("SMTP_PORT", "587")
+os.environ.setdefault("SMTP_USERNAME", "test@test.example")
+os.environ.setdefault("SMTP_PASSWORD", "testpass")
+os.environ.setdefault("SMTP_USE_TLS", "True")
+os.environ.setdefault("EMAIL_FROM", "noreply@test.example")
+os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
+os.environ.setdefault("INVITATION_TOKEN_EXPIRE_DAYS", "7")
 
 import pytest
 from fastapi.testclient import TestClient

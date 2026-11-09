@@ -19,7 +19,11 @@ from nabora_crm.modules.users.repository import get_user_by_email
 def authenticate_user(db: Session, email: str, password: str) -> User:
     """Verify credentials and return the user, or raise a domain exception."""
     user = get_user_by_email(db, email)
-    if not user or not verify_password(password, user.hashed_password):
+    if not user:
+        raise AuthenticationError("Incorrect email or password")
+    if user.is_pending:
+        raise AuthenticationError("Account not set up — please use the invitation link")
+    if not verify_password(password, user.hashed_password):
         raise AuthenticationError("Incorrect email or password")
     if not user.is_active:
         raise InactiveUserError("Inactive user account")

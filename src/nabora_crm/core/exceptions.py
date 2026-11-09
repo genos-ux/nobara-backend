@@ -25,6 +25,10 @@ class InvalidRefreshTokenError(DomainError):
     """Raised when a refresh token is missing, malformed, or invalid."""
 
 
+class EmailSendError(DomainError):
+    """Raised when an email could not be delivered."""
+
+
 class AdminPrivilegeRequiredError(DomainError):
     """Raised when a non-admin user attempts an admin-only action."""
 

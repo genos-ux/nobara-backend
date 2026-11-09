@@ -17,6 +17,9 @@ class User(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # Invitation state: True until the user sets their own password
+    is_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     role: Mapped["Role"] = relationship(lazy="selectin")  # noqa: F821
 
     @property
