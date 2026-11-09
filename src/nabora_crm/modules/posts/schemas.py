@@ -88,3 +88,11 @@ class PaginatedPosts(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+class PostStatusCounts(BaseModel):
+    draft: int
+    pending_review: int
+    published: int
+    unpublished: int
+    total: int

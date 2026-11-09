@@ -53,11 +53,16 @@ def test_invite_user_success(mock_send_email, client, admin_headers):
 
     resp = client.post(
         "/v1/invitations",
-        json={"email": "newuser@test.example", "role_id": role_id},
+        json={
+            "full_name": "New User",
+            "email": "newuser@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201, resp.text
     data = resp.json()
+    assert data["full_name"] == "New User"
     assert data["email"] == "newuser@test.example"
     assert data["is_pending"] is True
     assert data["role"] == "contributor"
@@ -72,7 +77,11 @@ def test_invite_duplicate_non_pending(mock_send_email, client, admin_headers):
     # First invite
     resp = client.post(
         "/v1/invitations",
-        json={"email": "dup@test.example", "role_id": role_id},
+        json={
+            "full_name": "Dup User",
+            "email": "dup@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201
@@ -90,7 +99,11 @@ def test_invite_duplicate_non_pending(mock_send_email, client, admin_headers):
     # Now try to invite the same email again
     resp2 = client.post(
         "/v1/invitations",
-        json={"email": "dup@test.example", "role_id": role_id},
+        json={
+            "full_name": "Dup User",
+            "email": "dup@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp2.status_code == 400
@@ -106,7 +119,11 @@ def test_invite_unauthenticated(mock_send_email, client):
     )
     resp = client.post(
         "/v1/invitations",
-        json={"email": "noauth@test.example", "role_id": role_id},
+        json={
+            "full_name": "No Auth",
+            "email": "noauth@test.example",
+            "role_id": role_id,
+        },
     )
     assert resp.status_code == 401
 
@@ -127,7 +144,11 @@ def test_accept_invitation_success(mock_send_email, client, admin_headers):
     # Invite
     resp = client.post(
         "/v1/invitations",
-        json={"email": "acceptme@test.example", "role_id": role_id},
+        json={
+            "full_name": "Accept Me",
+            "email": "acceptme@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201
@@ -175,7 +196,11 @@ def test_accept_invitation_already_used(mock_send_email, client, admin_headers):
     # Invite
     resp = client.post(
         "/v1/invitations",
-        json={"email": "used@test.example", "role_id": role_id},
+        json={
+            "full_name": "Used User",
+            "email": "used@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201
@@ -206,7 +231,11 @@ def test_pending_user_cannot_login(mock_send_email, client, admin_headers):
 
     resp = client.post(
         "/v1/invitations",
-        json={"email": "pending@test.example", "role_id": role_id},
+        json={
+            "full_name": "Pending User",
+            "email": "pending@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201
@@ -226,7 +255,11 @@ def test_reinvite_pending_user(mock_send_email, client, admin_headers):
 
     resp1 = client.post(
         "/v1/invitations",
-        json={"email": "reinvite@test.example", "role_id": role_id},
+        json={
+            "full_name": "Reinvite User",
+            "email": "reinvite@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp1.status_code == 201
@@ -234,7 +267,11 @@ def test_reinvite_pending_user(mock_send_email, client, admin_headers):
 
     resp2 = client.post(
         "/v1/invitations",
-        json={"email": "reinvite@test.example", "role_id": role_id},
+        json={
+            "full_name": "Reinvite User",
+            "email": "reinvite@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp2.status_code == 201
@@ -251,7 +288,11 @@ def test_password_too_short(mock_send_email, client, admin_headers):
 
     resp = client.post(
         "/v1/invitations",
-        json={"email": "shortpw@test.example", "role_id": role_id},
+        json={
+            "full_name": "Short Pw",
+            "email": "shortpw@test.example",
+            "role_id": role_id,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 201

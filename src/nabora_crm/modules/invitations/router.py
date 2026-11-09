@@ -33,12 +33,14 @@ def create_invitation(
     """
     user = invite_user(
         db,
+        full_name=payload.full_name,
         email=payload.email,
         role_id=payload.role_id,
         inviter_name=current_user.email,
     )
     return InviteUserResponse(
         id=user.id,
+        full_name=user.full_name,
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,
@@ -57,6 +59,7 @@ def accept_invitation_endpoint(
     user = accept_invitation(db, token=payload.token, password=payload.password)
     return InviteUserResponse(
         id=user.id,
+        full_name=user.full_name,
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,

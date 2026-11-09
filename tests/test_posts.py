@@ -116,6 +116,69 @@ def test_contributor_submits_and_admin_publishes(client, contributor_headers, ad
     assert published.json()["status"] == "published"
 
 
+def test_admin_unpublishes_published_post(
+    client, contributor_headers, admin_headers
+):
+    created = client.post(
+        "/v1/posts", json=_payload(topic="unpublish-me"), headers=contributor_headers
+    )
+    post_id = created.json()["id"]
+    client.post(f"/v1/posts/{post_id}/submit", headers=contributor_headers)
+    client.post(f"/v1/posts/{post_id}/publish", headers=admin_headers)
+
+    forbidden = client.post(
+        f"/v1/posts/{post_id}/unpublish", headers=contributor_headers
+    )
+    assert forbidden.status_code == 403
+
+    unpublished = client.post(
+        f"/v1/posts/{post_id}/unpublish", headers=admin_headers
+    )
+    assert unpublished.status_code == 200, unpublished.text
+    assert unpublished.json()["status"] == "unpublished"
+
+    # An unpublished post can be edited by its author and resubmitted.
+    edited = client.patch(
+        f"/v1/posts/{post_id}",
+        json={"headline": "Revised after unpublish"},
+        headers=contributor_headers,
+    )
+    assert edited.status_code == 200, edited.text
+
+    resubmitted = client.post(
+        f"/v1/posts/{post_id}/submit", headers=contributor_headers
+    )
+    assert resubmitted.status_code == 200, resubmitted.text
+    assert resubmitted.json()["status"] == "pending_review"
+
+
+def test_post_status_counts(client, contributor_headers):
+    before = client.get("/v1/posts/stats", headers=contributor_headers)
+    assert before.status_code == 200, before.text
+    before_body = before.json()
+    assert set(before_body) == {
+        "draft",
+        "pending_review",
+        "published",
+        "unpublished",
+        "total",
+    }
+
+    client.post(
+        "/v1/posts", json=_payload(topic="count-me"), headers=contributor_headers
+    )
+
+    after = client.get("/v1/posts/stats", headers=contributor_headers).json()
+    assert after["draft"] == before_body["draft"] + 1
+    assert after["total"] == before_body["total"] + 1
+    assert after["total"] == (
+        after["draft"]
+        + after["pending_review"]
+        + after["published"]
+        + after["unpublished"]
+    )
+
+
 def test_contributor_can_update_and_delete_own_post(client, contributor_headers):
     created = client.post(
         "/v1/posts", json=_payload(topic="edit-me"), headers=contributor_headers

@@ -81,6 +81,23 @@ def count_posts(
     return db.execute(stmt).scalar_one()
 
 
+def count_posts_by_status(
+    db: Session,
+    *,
+    author_id: uuid.UUID | None = None,
+) -> dict[PostStatus, int]:
+    """Return a mapping of status -> count for posts matching the filter."""
+    conditions = []
+    if author_id is not None:
+        conditions.append(Post.author_id == author_id)
+    stmt = (
+        select(Post.status, func.count())
+        .where(*conditions)
+        .group_by(Post.status)
+    )
+    return {status: count for status, count in db.execute(stmt).all()}
+
+
 def update_post(db: Session, post: Post, **fields) -> Post:
     """Apply field updates to a post and commit."""
     for field, value in fields.items():

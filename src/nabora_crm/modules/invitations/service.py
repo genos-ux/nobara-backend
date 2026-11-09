@@ -26,6 +26,7 @@ logger = logging.getLogger("nabora_crm")
 def invite_user(
     db: Session,
     *,
+    full_name: str,
     email: str,
     role_id: str,
     inviter_name: str | None = None,
@@ -50,13 +51,21 @@ def invite_user(
     pending = get_pending_user_by_email(db, email)
     if pending:
         user = pending
-        # Update role if re-invited with a different role
+        # Update details if re-invited with different values
+        changed = False
+        if user.full_name != full_name:
+            user.full_name = full_name
+            changed = True
         if str(user.role_id) != str(role_id):
             user.role_id = role_id
+            changed = True
+        if changed:
             db.commit()
             db.refresh(user)
     else:
-        user = create_pending_user(db, email=email, role_id=role_id)
+        user = create_pending_user(
+            db, full_name=full_name, email=email, role_id=role_id
+        )
 
     # Generate invitation token
     token = create_invitation_token({"sub": str(user.id), "email": user.email})

@@ -27,11 +27,13 @@ def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
 def create_pending_user(
     db: Session,
     *,
+    full_name: str,
     email: str,
     role_id: uuid.UUID,
 ) -> User:
     """Create a new pending user with a placeholder password."""
     user = User(
+        full_name=full_name,
         email=email,
         hashed_password="!pending",  # replaced on password setup
         role_id=role_id,

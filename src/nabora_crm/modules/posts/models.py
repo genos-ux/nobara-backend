@@ -17,7 +17,7 @@ class PostStatus(enum.Enum):
     draft = "draft"
     pending_review = "pending_review"
     published = "published"
-    rejected = "rejected"
+    unpublished = "unpublished"
 
 
 class Post(Base):

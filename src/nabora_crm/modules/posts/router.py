@@ -17,16 +17,18 @@ from nabora_crm.modules.posts.schemas import (
     PostCreate,
     PostListItem,
     PostOut,
+    PostStatusCounts,
     PostUpdate,
 )
 from nabora_crm.modules.posts.service import (
     create_post,
     delete_post,
     get_post_or_404,
+    get_post_status_counts,
     list_posts,
     publish_post,
-    reject_post,
     submit_for_review,
+    unpublish_post,
     update_post,
 )
 from nabora_crm.modules.users.models import User
@@ -81,6 +83,22 @@ def list_posts_endpoint(
         page=page,
         page_size=page_size,
         pages=pages,
+    )
+
+
+@router.get("/stats", response_model=PostStatusCounts)
+def get_post_stats_endpoint(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(POSTS_READ)),
+) -> PostStatusCounts:
+    """Return the number of posts in each status visible to the current user."""
+    counts = get_post_status_counts(db, user=user)
+    return PostStatusCounts(
+        draft=counts.get(PostStatus.draft, 0),
+        pending_review=counts.get(PostStatus.pending_review, 0),
+        published=counts.get(PostStatus.published, 0),
+        unpublished=counts.get(PostStatus.unpublished, 0),
+        total=sum(counts.values()),
     )
 
 
@@ -139,12 +157,12 @@ def publish_post_endpoint(
     return PostOut.model_validate(post)
 
 
-@router.post("/{post_id}/reject", response_model=PostOut)
-def reject_post_endpoint(
+@router.post("/{post_id}/unpublish", response_model=PostOut)
+def unpublish_post_endpoint(
     post_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(POSTS_REVIEW)),
 ) -> PostOut:
-    """Reject a post that is pending review (admin only)."""
-    post = reject_post(db, user=user, post_id=post_id)
+    """Unpublish a published post (admin only)."""
+    post = unpublish_post(db, user=user, post_id=post_id)
     return PostOut.model_validate(post)

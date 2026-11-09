@@ -7,6 +7,7 @@ from nabora_crm.core.permissions import POSTS_REVIEW
 from nabora_crm.modules.posts.models import Post, PostSection, PostStatus
 from nabora_crm.modules.posts.repository import (
     count_posts,
+    count_posts_by_status,
     create_post as create_post_record,
     delete_post as delete_post_record,
     get_post_by_id,
@@ -119,13 +120,15 @@ def delete_post(db: Session, *, user: User, post_id: uuid.UUID) -> None:
 
 
 def submit_for_review(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
-    """Submit a draft (or rejected) post for admin review."""
+    """Submit a draft (or unpublished) post for admin review."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
     if post.author_id != user.id and not _can_review(db, user):
         raise DomainError("You can only submit your own posts")
-    if post.status not in (PostStatus.draft, PostStatus.rejected):
-        raise DomainError("Only draft or rejected posts can be submitted for review")
+    if post.status not in (PostStatus.draft, PostStatus.unpublished):
+        raise DomainError(
+            "Only draft or unpublished posts can be submitted for review"
+        )
 
     return set_post_status(db, post, PostStatus.pending_review)
 
@@ -142,13 +145,19 @@ def publish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
     return set_post_status(db, post, PostStatus.published)
 
 
-def reject_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
-    """Reject a post that is pending review (reviewers only)."""
+def unpublish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
+    """Unpublish a published post (reviewers only)."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
     if not _can_review(db, user):
-        raise DomainError("You do not have permission to reject posts")
-    if post.status != PostStatus.pending_review:
-        raise DomainError("Only posts pending review can be rejected")
+        raise DomainError("You do not have permission to unpublish posts")
+    if post.status != PostStatus.published:
+        raise DomainError("Only published posts can be unpublished")
 
-    return set_post_status(db, post, PostStatus.rejected)
+    return set_post_status(db, post, PostStatus.unpublished)
+
+
+def get_post_status_counts(db: Session, *, user: User) -> dict[PostStatus, int]:
+    """Return post counts per status visible to the current user."""
+    author_id = None if _can_review(db, user) else user.id
+    return count_posts_by_status(db, author_id=author_id)
