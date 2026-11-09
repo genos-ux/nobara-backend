@@ -5,6 +5,7 @@ from nabora_crm.core.permissions import ALL_PERMISSIONS, ADMIN_ACCESS
 from nabora_crm.core.security import hash_password
 from nabora_crm.db.base import Base
 from nabora_crm.db.session import SessionLocal, engine
+from nabora_crm.modules.posts.models import Post  # noqa: F401
 from nabora_crm.modules.roles.models import Permission, Role
 from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import get_user_by_email
@@ -14,7 +15,9 @@ logger = logging.getLogger("nabora_crm")
 # Default role -> permission mapping for system roles.
 DEFAULT_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "admin": ALL_PERMISSIONS,
-    "contributor": frozenset({"crm:read", "crm:write"}),
+    "contributor": frozenset(
+        {"crm:read", "crm:write", "posts:read", "posts:write", "posts:delete"}
+    ),
 }
 
 # Human-readable descriptions for system roles.

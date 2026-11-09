@@ -24,6 +24,12 @@ ROLES_READ = "roles:read"
 ROLES_WRITE = "roles:write"
 ROLES_DELETE = "roles:delete"
 
+# Post management
+POSTS_READ = "posts:read"
+POSTS_WRITE = "posts:write"
+POSTS_DELETE = "posts:delete"
+POSTS_REVIEW = "posts:review"
+
 # Admin panel access
 ADMIN_ACCESS = "admin:access"
 
@@ -39,6 +45,10 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         ROLES_READ,
         ROLES_WRITE,
         ROLES_DELETE,
+        POSTS_READ,
+        POSTS_WRITE,
+        POSTS_DELETE,
+        POSTS_REVIEW,
         ADMIN_ACCESS,
     }
 )

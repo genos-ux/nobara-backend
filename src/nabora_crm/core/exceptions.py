@@ -29,6 +29,10 @@ class EmailSendError(DomainError):
     """Raised when an email could not be delivered."""
 
 
+class UploadError(DomainError):
+    """Raised when a file upload fails or storage is not configured."""
+
+
 class AdminPrivilegeRequiredError(DomainError):
     """Raised when a non-admin user attempts an admin-only action."""
 

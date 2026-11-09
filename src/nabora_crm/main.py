@@ -20,6 +20,7 @@ from nabora_crm.core.exceptions import (
     InvalidRefreshTokenError,
     InvalidTokenError,
     PermissionDeniedError,
+    UploadError,
 )
 from nabora_crm.core.logging import setup_logging
 from nabora_crm.db.init_db import init_db
@@ -114,6 +115,14 @@ async def handle_permission_denied_error(_: Request, exc: PermissionDeniedError)
 
 @app.exception_handler(EmailSendError)
 async def handle_email_send_error(_: Request, exc: EmailSendError):
+    return JSONResponse(
+        status_code=502,
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(UploadError)
+async def handle_upload_error(_: Request, exc: UploadError):
     return JSONResponse(
         status_code=502,
         content={"detail": str(exc)},

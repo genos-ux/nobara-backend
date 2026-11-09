@@ -31,6 +31,7 @@ from nabora_crm.main import app
 # Ensure all models are registered with Base.metadata
 import nabora_crm.modules.users.models  # noqa: F401
 import nabora_crm.modules.crm.models  # noqa: F401
+import nabora_crm.modules.posts.models  # noqa: F401
 import nabora_crm.modules.roles.models  # noqa: F401
 
 

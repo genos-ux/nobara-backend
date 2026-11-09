@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     EMAIL_FROM: str = ""
 
+    # Cloudinary (file uploads)
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+    CLOUDINARY_FOLDER: str = "nabora"
+
+    # Upload limits
+    MAX_UPLOAD_SIZE_MB: int = 10
+
     # Frontend URL (used to build invitation links)
     FRONTEND_URL: str = "http://localhost:3000"
 
