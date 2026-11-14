@@ -93,6 +93,6 @@ def send_invitation_email(
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.sendmail(msg["From"], [to_email], msg.as_string())
         logger.info("Invitation email sent to %s", to_email)
-    except smtplib.SMTPException as exc:
+    except (smtplib.SMTPException, OSError) as exc:
         logger.error("Failed to send invitation email to %s: %s", to_email, exc)
         raise EmailSendError(f"Failed to send invitation email: {exc}") from exc
