@@ -13,7 +13,6 @@ from nabora_crm.core.security import (
 )
 from nabora_crm.modules.invitations.repository import (
     create_pending_user,
-    get_pending_user_by_email,
     get_user_by_email,
     get_user_by_id,
 )
@@ -37,35 +36,20 @@ def invite_user(
         DomainError: If the email is already in use by an active user.
         EmailSendError: If the email could not be sent.
     """
-    # Check for existing non-pending user with this email
+    # An email may only ever be invited once. Pending users should use the
+    # resend endpoint; active users cannot be invited again.
     existing = get_user_by_email(db, email)
-    if existing and not existing.is_pending:
-        raise DomainError(f"A user with email '{email}' already exists")
+    if existing is not None:
+        raise DomainError(f"A user with email '{email}' already exists in the system")
 
     # Validate role exists
     role = get_role_by_id(db, role_id)
     if role is None:
         raise DomainError(f"Role with id {role_id} not found")
 
-    # Reuse existing pending user or create a new one
-    pending = get_pending_user_by_email(db, email)
-    if pending:
-        user = pending
-        # Update details if re-invited with different values
-        changed = False
-        if user.full_name != full_name:
-            user.full_name = full_name
-            changed = True
-        if str(user.role_id) != str(role_id):
-            user.role_id = role_id
-            changed = True
-        if changed:
-            db.commit()
-            db.refresh(user)
-    else:
-        user = create_pending_user(
-            db, full_name=full_name, email=email, role_id=role_id
-        )
+    user = create_pending_user(
+        db, full_name=full_name, email=email, role_id=role_id
+    )
 
     # Generate invitation token
     token = create_invitation_token({"sub": str(user.id), "email": user.email})
@@ -78,6 +62,50 @@ def invite_user(
     )
 
     logger.info("Invitation sent to %s", email)
+    return user
+
+
+def resend_invitation(
+    db: Session,
+    *,
+    user_id: uuid.UUID | None = None,
+    email: str | None = None,
+    inviter_name: str | None = None,
+) -> User:
+    """Generate a fresh token and re-send an invitation email.
+
+    Identifies the user by ID or email. Only pending users (who have not yet
+    set their password) can be re-invited.
+
+    Raises:
+        DomainError: If no identifier is given, the user is not found, or the
+                     user has already completed the invitation.
+        EmailSendError: If the email could not be sent.
+    """
+    if user_id is not None:
+        user = get_user_by_id(db, user_id)
+    elif email is not None:
+        user = get_user_by_email(db, email)
+    else:
+        raise DomainError("Provide either a user id or an email to resend an invitation")
+
+    if user is None:
+        identifier = user_id if user_id is not None else email
+        raise DomainError(f"No user found for {identifier}")
+
+    if not user.is_pending:
+        raise DomainError(
+            f"User '{user.email}' has already completed setup; no invitation to resend"
+        )
+
+    token = create_invitation_token({"sub": str(user.id), "email": user.email})
+    send_invitation_email(
+        to_email=user.email,
+        invite_token=token,
+        inviter_name=inviter_name,
+    )
+
+    logger.info("Invitation re-sent to %s", user.email)
     return user
 
 

@@ -12,8 +12,14 @@ from nabora_crm.modules.invitations.schemas import (
     AcceptInviteRequest,
     InviteUserRequest,
     InviteUserResponse,
+    ResendInviteRequest,
+    ResendInviteResponse,
 )
-from nabora_crm.modules.invitations.service import accept_invitation, invite_user
+from nabora_crm.modules.invitations.service import (
+    accept_invitation,
+    invite_user,
+    resend_invitation,
+)
 from nabora_crm.modules.users.models import User
 
 logger = logging.getLogger("nabora_crm")
@@ -44,6 +50,36 @@ def create_invitation(
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,
+    )
+
+
+@router.post("/resend", response_model=ResendInviteResponse)
+def resend_invitation_endpoint(
+    payload: ResendInviteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission(INVITATIONS_WRITE)),
+) -> ResendInviteResponse:
+    """Re-send an invitation email to a pending user, by user ID or email.
+
+    Generates a fresh token, so this also covers expired invitation links.
+    """
+    user = resend_invitation(
+        db,
+        user_id=payload.user_id,
+        email=str(payload.email) if payload.email is not None else None,
+        inviter_name=current_user.email,
+    )
+    return ResendInviteResponse(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        role=user.role.name,
+        is_pending=user.is_pending,
+        expires_in_days=settings.INVITATION_TOKEN_EXPIRE_DAYS,
+        message=(
+            f"Invitation re-sent to {user.email}. "
+            f"The link expires in {settings.INVITATION_TOKEN_EXPIRE_DAYS} day(s)."
+        ),
     )
 
 

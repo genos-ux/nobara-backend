@@ -12,12 +12,6 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.execute(stmt).scalar_one_or_none()
 
 
-def get_pending_user_by_email(db: Session, email: str) -> User | None:
-    """Fetch a pending (invited) user by email."""
-    stmt = select(User).where(User.email == email, User.is_pending == True)  # noqa: E712
-    return db.execute(stmt).scalar_one_or_none()
-
-
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
     """Fetch a user by ID."""
     stmt = select(User).where(User.id == user_id)

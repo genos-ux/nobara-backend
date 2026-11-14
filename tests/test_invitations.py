@@ -249,8 +249,8 @@ def test_pending_user_cannot_login(mock_send_email, client, admin_headers):
 
 
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
-def test_reinvite_pending_user(mock_send_email, client, admin_headers):
-    """Re-inviting a still-pending user does not create a duplicate."""
+def test_reinvite_pending_user_rejected(mock_send_email, client, admin_headers):
+    """Inviting an email that already exists is rejected, even if pending."""
     role_id = _get_contributor_role_id(client, admin_headers)
 
     resp1 = client.post(
@@ -263,7 +263,7 @@ def test_reinvite_pending_user(mock_send_email, client, admin_headers):
         headers=admin_headers,
     )
     assert resp1.status_code == 201
-    user_id_1 = resp1.json()["id"]
+    assert mock_send_email.call_count == 1
 
     resp2 = client.post(
         "/v1/invitations",
@@ -274,11 +274,143 @@ def test_reinvite_pending_user(mock_send_email, client, admin_headers):
         },
         headers=admin_headers,
     )
-    assert resp2.status_code == 201
-    user_id_2 = resp2.json()["id"]
+    assert resp2.status_code == 400
+    assert "already exists in the system" in resp2.json()["detail"]
+    assert mock_send_email.call_count == 1
 
-    # Same user, not a new one
-    assert user_id_1 == user_id_2
+
+@patch("nabora_crm.modules.invitations.service.send_invitation_email")
+def test_resend_invitation_by_user_id(mock_send_email, client, admin_headers):
+    """Admin can resend an invitation using the user id."""
+    role_id = _get_contributor_role_id(client, admin_headers)
+
+    invite = client.post(
+        "/v1/invitations",
+        json={
+            "full_name": "Resend By Id",
+            "email": "resend-id@test.example",
+            "role_id": role_id,
+        },
+        headers=admin_headers,
+    )
+    assert invite.status_code == 201
+    user_id = invite.json()["id"]
+
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"user_id": user_id},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["id"] == user_id
+    assert data["email"] == "resend-id@test.example"
+    assert data["is_pending"] is True
+    assert data["expires_in_days"] >= 1
+    assert "re-sent" in data["message"]
+    assert mock_send_email.call_count == 2
+
+
+@patch("nabora_crm.modules.invitations.service.send_invitation_email")
+def test_resend_invitation_by_email(mock_send_email, client, admin_headers):
+    """Admin can resend an invitation using the email address."""
+    role_id = _get_contributor_role_id(client, admin_headers)
+
+    invite = client.post(
+        "/v1/invitations",
+        json={
+            "full_name": "Resend By Email",
+            "email": "resend-email@test.example",
+            "role_id": role_id,
+        },
+        headers=admin_headers,
+    )
+    assert invite.status_code == 201
+
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"email": "resend-email@test.example"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["email"] == "resend-email@test.example"
+    assert mock_send_email.call_count == 2
+
+
+@patch("nabora_crm.modules.invitations.service.send_invitation_email")
+def test_resend_invitation_unknown_user(mock_send_email, client, admin_headers):
+    """Resending to an unknown user returns a domain error."""
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"email": "missing@test.example"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
+    assert "No user found" in resp.json()["detail"]
+    mock_send_email.assert_not_called()
+
+
+@patch("nabora_crm.modules.invitations.service.send_invitation_email")
+def test_resend_invitation_completed_user(mock_send_email, client, admin_headers):
+    """Resending to a user who already set their password is rejected."""
+    role_id = _get_contributor_role_id(client, admin_headers)
+
+    invite = client.post(
+        "/v1/invitations",
+        json={
+            "full_name": "Completed User",
+            "email": "completed@test.example",
+            "role_id": role_id,
+        },
+        headers=admin_headers,
+    )
+    assert invite.status_code == 201
+    user_id = invite.json()["id"]
+
+    token = create_invitation_token(
+        {"sub": user_id, "email": "completed@test.example"}
+    )
+    accept = client.post(
+        "/v1/invitations/accept",
+        json={"token": token, "password": "strongpassword123"},
+    )
+    assert accept.status_code == 200
+
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"user_id": user_id},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
+    assert "already completed" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"user_id": "00000000-0000-0000-0000-000000000000", "email": "both@test.example"},
+    ],
+)
+def test_resend_invitation_requires_exactly_one_identifier(
+    client, admin_headers, payload
+):
+    """Exactly one of user_id or email must be provided."""
+    resp = client.post(
+        "/v1/invitations/resend",
+        json=payload,
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_resend_invitation_unauthenticated(client):
+    """Unauthenticated users cannot resend invitations."""
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"email": "noauth@test.example"},
+    )
+    assert resp.status_code == 401
 
 
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
