@@ -29,10 +29,15 @@ def contributor_headers(client):
     db = SessionLocal()
     try:
         existing = db.query(User).filter(User.email == email).first()
-        if not existing:
+        if existing:
+            if existing.full_name != "Contributor Person":
+                existing.full_name = "Contributor Person"
+                db.commit()
+        else:
             role = db.query(Role).filter(Role.name == "contributor").first()
             db.add(
                 User(
+                    full_name="Contributor Person",
                     email=email,
                     hashed_password=hash_password(password),
                     role_id=role.id,
@@ -54,7 +59,7 @@ def _payload(**overrides) -> dict:
         "practical_guidance": "Eat 1.6g/kg/day.",
         "sources_references": "Journal of Nutrition",
         "section": "nutrition",
-        "topic": "protein",
+        "topic": "Nutrition Basics",
         "image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
         "placeholder_color": "#4F46E5",
     }
@@ -68,6 +73,7 @@ def test_contributor_can_create_draft(client, contributor_headers):
     body = resp.json()
     assert body["status"] == "draft"
     assert body["section"] == "nutrition"
+    assert body["topic"] == "Nutrition Basics"
     assert body["image_url"].startswith("https://res.cloudinary.com")
     assert body["author_email"] == "contributor@test.example"
 
@@ -89,6 +95,13 @@ def test_invalid_section_and_color_are_rejected(client, contributor_headers):
     )
     assert bad_section.status_code == 422
 
+    bad_topic = client.post(
+        "/v1/posts",
+        json=_payload(topic="cardio"),
+        headers=contributor_headers,
+    )
+    assert bad_topic.status_code == 422
+
     bad_color = client.post(
         "/v1/posts",
         json=_payload(placeholder_color="blue"),
@@ -99,7 +112,7 @@ def test_invalid_section_and_color_are_rejected(client, contributor_headers):
 
 def test_contributor_submits_and_admin_publishes(client, contributor_headers, admin_headers):
     created = client.post(
-        "/v1/posts", json=_payload(topic="review-flow"), headers=contributor_headers
+        "/v1/posts", json=_payload(topic="Nutrition Basics"), headers=contributor_headers
     )
     assert created.status_code == 201
     post_id = created.json()["id"]
@@ -122,7 +135,7 @@ def test_admin_unpublishes_published_post(
     client, contributor_headers, admin_headers
 ):
     created = client.post(
-        "/v1/posts", json=_payload(topic="unpublish-me"), headers=contributor_headers
+        "/v1/posts", json=_payload(topic="Supplement Education"), headers=contributor_headers
     )
     post_id = created.json()["id"]
     client.post(f"/v1/posts/{post_id}/submit", headers=contributor_headers)
@@ -167,7 +180,7 @@ def test_post_status_counts(client, contributor_headers):
     }
 
     client.post(
-        "/v1/posts", json=_payload(topic="count-me"), headers=contributor_headers
+        "/v1/posts", json=_payload(topic="Health & Wellness"), headers=contributor_headers
     )
 
     after = client.get("/v1/posts/stats", headers=contributor_headers).json()
@@ -183,7 +196,7 @@ def test_post_status_counts(client, contributor_headers):
 
 def test_contributor_can_update_and_delete_own_post(client, contributor_headers):
     created = client.post(
-        "/v1/posts", json=_payload(topic="edit-me"), headers=contributor_headers
+        "/v1/posts", json=_payload(topic="Ingredients Explained"), headers=contributor_headers
     )
     post_id = created.json()["id"]
 
@@ -205,12 +218,12 @@ def test_contributor_can_update_and_delete_own_post(client, contributor_headers)
 def test_list_and_filter_posts(client, contributor_headers):
     fitness = client.post(
         "/v1/posts",
-        json=_payload(topic="fitness-topic", section="fitness"),
+        json=_payload(topic="Public Health Topics", section="fitness"),
         headers=contributor_headers,
     ).json()
     nutrition = client.post(
         "/v1/posts",
-        json=_payload(topic="nutrition-topic", section="nutrition"),
+        json=_payload(topic="Nutrition Basics", section="nutrition"),
         headers=contributor_headers,
     ).json()
 
@@ -246,11 +259,48 @@ def test_list_and_filter_posts(client, contributor_headers):
     assert posts[0]["author"] == posts[0]["author_email"]
 
 
+def test_filter_posts_by_topic(client, contributor_headers):
+    wellness = client.post(
+        "/v1/posts",
+        json=_payload(topic="Health & Wellness", section="nutrition"),
+        headers=contributor_headers,
+    ).json()
+    ingredients = client.post(
+        "/v1/posts",
+        json=_payload(topic="Ingredients Explained", section="nutrition"),
+        headers=contributor_headers,
+    ).json()
+
+    resp = client.get(
+        "/v1/posts",
+        params={"topic": "Health & Wellness", "page_size": 100},
+        headers=contributor_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    ids = {p["id"] for p in resp.json()["items"]}
+    assert wellness["id"] in ids
+    assert ingredients["id"] not in ids
+
+    combined = client.get(
+        "/v1/posts",
+        params={
+            "section": "nutrition",
+            "topic": "Ingredients Explained",
+            "page_size": 100,
+        },
+        headers=contributor_headers,
+    )
+    assert combined.status_code == 200, combined.text
+    combined_ids = {p["id"] for p in combined.json()["items"]}
+    assert ingredients["id"] in combined_ids
+    assert wellness["id"] not in combined_ids
+
+
 def test_status_filter_and_pagination(client, contributor_headers):
     for i in range(3):
         client.post(
             "/v1/posts",
-            json=_payload(topic=f"page-topic-{i}", status="draft"),
+            json=_payload(topic="Nutrition Basics", status="draft"),
             headers=contributor_headers,
         )
 
@@ -279,20 +329,37 @@ def test_contributor_sees_only_own_posts_admin_sees_all(
     client, contributor_headers, admin_headers
 ):
     admin_post = client.post(
-        "/v1/posts", json=_payload(topic="admin-topic"), headers=admin_headers
+        "/v1/posts", json=_payload(topic="Nutrition Basics"), headers=admin_headers
     )
     assert admin_post.status_code == 201
     admin_post_id = admin_post.json()["id"]
 
+    contributor_post = client.post(
+        "/v1/posts",
+        json=_payload(topic="Health & Wellness"),
+        headers=contributor_headers,
+    )
+    assert contributor_post.status_code == 201
+    contributor_post_id = contributor_post.json()["id"]
+
     contributor_list = client.get("/v1/posts", headers=contributor_headers)
     assert contributor_list.status_code == 200
-    contributor_ids = {p["id"] for p in contributor_list.json()["items"]}
+    contributor_items = contributor_list.json()["items"]
+    contributor_ids = {p["id"] for p in contributor_items}
     assert admin_post_id not in contributor_ids
+    assert contributor_post_id in contributor_ids
+    # Non-reviewers do not receive the author's name.
+    own_item = next(p for p in contributor_items if p["id"] == contributor_post_id)
+    assert own_item["author_name"] is None
 
     admin_list = client.get("/v1/posts", headers=admin_headers)
     assert admin_list.status_code == 200
-    admin_ids = {p["id"] for p in admin_list.json()["items"]}
+    admin_items = admin_list.json()["items"]
+    admin_ids = {p["id"] for p in admin_items}
     assert admin_post_id in admin_ids
+    # Reviewers receive the author's name.
+    reviewer_item = next(p for p in admin_items if p["id"] == contributor_post_id)
+    assert reviewer_item["author_name"] == "Contributor Person"
 
 
 def _ensure_role(client, admin_headers, name, permission_names):
@@ -338,7 +405,7 @@ def test_list_posts_visibility_is_permission_based(
     """posts:review grants the all-posts view regardless of the role name."""
     shared = client.post(
         "/v1/posts",
-        json=_payload(topic="permission-visibility-shared"),
+        json=_payload(topic="Supplement Education"),
         headers=contributor_headers,
     )
     assert shared.status_code == 201, shared.text
@@ -355,7 +422,7 @@ def test_list_posts_visibility_is_permission_based(
 
     own = client.post(
         "/v1/posts",
-        json=_payload(topic="permission-visibility-own"),
+        json=_payload(topic="Ingredients Explained"),
         headers=author_headers,
     )
     assert own.status_code == 201, own.text
@@ -363,9 +430,11 @@ def test_list_posts_visibility_is_permission_based(
 
     author_list = client.get("/v1/posts", headers=author_headers)
     assert author_list.status_code == 200, author_list.text
-    author_ids = {p["id"] for p in author_list.json()["items"]}
+    author_items = author_list.json()["items"]
+    author_ids = {p["id"] for p in author_items}
     assert own_id in author_ids
     assert shared_id not in author_ids
+    assert all(p["author_name"] is None for p in author_items)
 
     reviewer_role_id = _ensure_role(
         client,
@@ -380,6 +449,9 @@ def test_list_posts_visibility_is_permission_based(
 
     reviewer_list = client.get("/v1/posts", headers=reviewer_headers)
     assert reviewer_list.status_code == 200, reviewer_list.text
-    reviewer_ids = {p["id"] for p in reviewer_list.json()["items"]}
+    reviewer_items = reviewer_list.json()["items"]
+    reviewer_ids = {p["id"] for p in reviewer_items}
     assert shared_id in reviewer_ids
     assert own_id in reviewer_ids
+    shared_item = next(p for p in reviewer_items if p["id"] == shared_id)
+    assert shared_item["author_name"] == "Contributor Person"

@@ -3,18 +3,21 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from nabora_crm.modules.posts.models import Post, PostSection, PostStatus
+from nabora_crm.modules.posts.models import Post, PostSection, PostStatus, PostTopic
 
 
 def _conditions(
     *,
     section: PostSection | None = None,
+    topic: PostTopic | None = None,
     status: PostStatus | None = None,
     author_id: uuid.UUID | None = None,
 ) -> list:
     conditions = []
     if section is not None:
         conditions.append(Post.section == section)
+    if topic is not None:
+        conditions.append(Post.topic == topic)
     if status is not None:
         conditions.append(Post.status == status)
     if author_id is not None:
@@ -46,6 +49,7 @@ def list_posts(
     db: Session,
     *,
     section: PostSection | None = None,
+    topic: PostTopic | None = None,
     status: PostStatus | None = None,
     author_id: uuid.UUID | None = None,
     offset: int = 0,
@@ -54,7 +58,14 @@ def list_posts(
     """List posts with optional filters and pagination."""
     stmt = (
         select(Post)
-        .where(*_conditions(section=section, status=status, author_id=author_id))
+        .where(
+            *_conditions(
+                section=section,
+                topic=topic,
+                status=status,
+                author_id=author_id,
+            )
+        )
         .options(selectinload(Post.author))
         .order_by(Post.updated_at.desc(), Post.created_at.desc())
     )
@@ -69,6 +80,7 @@ def count_posts(
     db: Session,
     *,
     section: PostSection | None = None,
+    topic: PostTopic | None = None,
     status: PostStatus | None = None,
     author_id: uuid.UUID | None = None,
 ) -> int:
@@ -76,7 +88,14 @@ def count_posts(
     stmt = (
         select(func.count())
         .select_from(Post)
-        .where(*_conditions(section=section, status=status, author_id=author_id))
+        .where(
+            *_conditions(
+                section=section,
+                topic=topic,
+                status=status,
+                author_id=author_id,
+            )
+        )
     )
     return db.execute(stmt).scalar_one()
 

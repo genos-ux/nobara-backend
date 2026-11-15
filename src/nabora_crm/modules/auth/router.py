@@ -4,9 +4,15 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.db.session import get_db
 from nabora_crm.modules.auth.dependencies import get_current_user, oauth2_scheme
-from nabora_crm.modules.auth.schemas import LoginRequest, TokenRequest, UserProfile
+from nabora_crm.modules.auth.schemas import (
+    ChangePasswordRequest,
+    LoginRequest,
+    TokenRequest,
+    UserProfile,
+)
 from nabora_crm.modules.auth.service import (
     authenticate_user,
+    change_password,
     create_token_pair,
     refresh_access_token,
 )
@@ -42,6 +48,22 @@ def refresh_token(
 ) -> dict[str, str]:
     """Issue a new access token using a valid refresh token."""
     return refresh_access_token(db, request.refresh_token)
+
+
+@router.post("/change-password")
+def change_password_endpoint(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    """Change the current authenticated user's password."""
+    change_password(
+        db,
+        current_user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+    return {"message": "Password updated successfully"}
 
 
 @router.get("/me", response_model=UserProfile)

@@ -47,6 +47,7 @@ class TestOpenAPI:
         assert "/v1/auth/logout" in paths
         assert "/v1/auth/refresh" in paths
         assert "/v1/auth/me" in paths
+        assert "/v1/auth/change-password" in paths
 
     def test_roles_routes_in_schema(self, client):
         """All roles endpoints are registered in the OpenAPI schema under /v1."""
@@ -529,3 +530,122 @@ class TestUserManagement:
         assert client.patch(f"/v1/users/{fake_id}", json={"full_name": "x"}).status_code == 401
         assert client.patch(f"/v1/users/{fake_id}/deactivate").status_code == 401
         assert client.patch(f"/v1/users/{fake_id}/activate").status_code == 401
+
+
+class TestChangePassword:
+    """Verify the current user's change-password endpoint."""
+
+    def _create_user(self, email, password):
+        from nabora_crm.db.session import SessionLocal
+        from nabora_crm.modules.users.models import User
+        from nabora_crm.modules.roles.models import Role
+        from nabora_crm.core.security import hash_password
+
+        db = SessionLocal()
+        try:
+            existing = db.query(User).filter(User.email == email).first()
+            if existing:
+                db.delete(existing)
+                db.commit()
+            role = db.query(Role).filter(Role.name == "contributor").first()
+            user = User(
+                email=email,
+                hashed_password=hash_password(password),
+                role_id=role.id,
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return str(user.id)
+        finally:
+            db.close()
+
+    def _login(self, client, email, password):
+        return client.post(
+            "/v1/auth/login", json={"email": email, "password": password}
+        )
+
+    def _headers(self, client, email, password):
+        login = self._login(client, email, password)
+        assert login.status_code == 200, login.text
+        return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    def test_change_password_success(self, client):
+        """A user can change their password with the correct current one."""
+        email = "change-pw@test.example"
+        self._create_user(email, "oldpassword123")
+        headers = self._headers(client, email, "oldpassword123")
+
+        response = client.post(
+            "/v1/auth/change-password",
+            json={
+                "current_password": "oldpassword123",
+                "new_password": "newpassword456",
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["message"] == "Password updated successfully"
+
+        assert self._login(client, email, "newpassword456").status_code == 200
+        assert self._login(client, email, "oldpassword123").status_code == 401
+
+    def test_change_password_wrong_current(self, client):
+        """An incorrect current password is rejected."""
+        email = "change-pw-wrong@test.example"
+        self._create_user(email, "oldpassword123")
+        headers = self._headers(client, email, "oldpassword123")
+
+        response = client.post(
+            "/v1/auth/change-password",
+            json={
+                "current_password": "notmypassword",
+                "new_password": "newpassword456",
+            },
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert "Current password is incorrect" in response.json()["detail"]
+
+        assert self._login(client, email, "oldpassword123").status_code == 200
+
+    def test_change_password_same_password_rejected(self, client):
+        """The new password must differ from the current one."""
+        email = "change-pw-same@test.example"
+        self._create_user(email, "oldpassword123")
+        headers = self._headers(client, email, "oldpassword123")
+
+        response = client.post(
+            "/v1/auth/change-password",
+            json={
+                "current_password": "oldpassword123",
+                "new_password": "oldpassword123",
+            },
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+    def test_change_password_too_short(self, client):
+        """The new password must be at least 8 characters."""
+        email = "change-pw-short@test.example"
+        self._create_user(email, "oldpassword123")
+        headers = self._headers(client, email, "oldpassword123")
+
+        response = client.post(
+            "/v1/auth/change-password",
+            json={"current_password": "oldpassword123", "new_password": "short"},
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+    def test_change_password_requires_auth(self, client):
+        """Unauthenticated requests are rejected."""
+        response = client.post(
+            "/v1/auth/change-password",
+            json={
+                "current_password": "oldpassword123",
+                "new_password": "newpassword456",
+            },
+        )
+        assert response.status_code == 401

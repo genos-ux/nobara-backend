@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import (
     AuthenticationError,
+    DomainError,
     InactiveUserError,
     InvalidRefreshTokenError,
 )
@@ -10,6 +11,7 @@ from nabora_crm.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    hash_password,
     verify_password,
 )
 from nabora_crm.modules.users.models import User
@@ -27,6 +29,31 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
         raise AuthenticationError("Incorrect email or password")
     if not user.is_active:
         raise InactiveUserError("Inactive user account")
+    return user
+
+
+def change_password(
+    db: Session,
+    user: User,
+    *,
+    current_password: str,
+    new_password: str,
+) -> User:
+    """Change a user's password after verifying the current one.
+
+    Raises:
+        DomainError: If the current password is incorrect or the new password
+                     matches the current one.
+    """
+    if not verify_password(current_password, user.hashed_password):
+        raise DomainError("Current password is incorrect")
+
+    if verify_password(new_password, user.hashed_password):
+        raise DomainError("New password must be different from the current password")
+
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+    db.refresh(user)
     return user
 
 

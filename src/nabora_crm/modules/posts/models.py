@@ -20,6 +20,14 @@ class PostStatus(enum.Enum):
     unpublished = "unpublished"
 
 
+class PostTopic(enum.Enum):
+    nutrition_basics = "Nutrition Basics"
+    health_wellness = "Health & Wellness"
+    supplement_education = "Supplement Education"
+    ingredients_explained = "Ingredients Explained"
+    public_health_topics = "Public Health Topics"
+
+
 class Post(Base):
     __tablename__ = "posts"
 
@@ -34,7 +42,15 @@ class Post(Base):
     section: Mapped[PostSection] = mapped_column(
         Enum(PostSection, name="post_section"), nullable=False, index=True,
     )
-    topic: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    topic: Mapped[PostTopic] = mapped_column(
+        Enum(
+            PostTopic,
+            name="post_topic",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        index=True,
+    )
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     placeholder_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
 

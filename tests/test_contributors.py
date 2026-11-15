@@ -68,7 +68,7 @@ def test_list_contributors_includes_posts_and_status(
             "headline": "Contributor post",
             "practical_guidance": "Do the thing.",
             "section": "nutrition",
-            "topic": "protein",
+            "topic": "Nutrition Basics",
         },
         headers=contributor_headers,
     )

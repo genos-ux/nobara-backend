@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
 from nabora_crm.core.permissions import POSTS_REVIEW
-from nabora_crm.modules.posts.models import Post, PostSection, PostStatus
+from nabora_crm.modules.posts.models import Post, PostSection, PostStatus, PostTopic
 from nabora_crm.modules.posts.repository import (
     count_posts,
     count_posts_by_status,
@@ -24,7 +24,7 @@ def _has_permission(db: Session, user: User, permission: str) -> bool:
     return permission in set(get_user_permissions(db, user.role_id))
 
 
-def _can_review(db: Session, user: User) -> bool:
+def can_review(db: Session, user: User) -> bool:
     """Return True when the user's role grants ``posts:review``.
 
     Visibility is driven by permissions, not role names, so renaming a role
@@ -54,6 +54,7 @@ def list_posts(
     *,
     user: User,
     section: PostSection | None = None,
+    topic: PostTopic | None = None,
     status: PostStatus | None = None,
     offset: int = 0,
     limit: int | None = None,
@@ -65,11 +66,12 @@ def list_posts(
     Visibility is permission-based, not role-name-based. Returns
     ``(posts, total)``.
     """
-    author_id = None if _can_review(db, user) else user.id
+    author_id = None if can_review(db, user) else user.id
 
     posts = list_post_records(
         db,
         section=section,
+        topic=topic,
         status=status,
         author_id=author_id,
         offset=offset,
@@ -78,6 +80,7 @@ def list_posts(
     total = count_posts(
         db,
         section=section,
+        topic=topic,
         status=status,
         author_id=author_id,
     )
@@ -90,7 +93,7 @@ def get_post_or_404(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
     if post is None:
         raise DomainError(f"Post with id {post_id} not found")
 
-    if _can_review(db, user) or post.author_id == user.id:
+    if can_review(db, user) or post.author_id == user.id:
         return post
     if post.status == PostStatus.published:
         return post
@@ -108,9 +111,9 @@ def update_post(
     """Update a post. Only the author (or a reviewer) may edit it."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
-    if post.author_id != user.id and not _can_review(db, user):
+    if post.author_id != user.id and not can_review(db, user):
         raise DomainError("You can only edit your own posts")
-    if post.status == PostStatus.published and not _can_review(db, user):
+    if post.status == PostStatus.published and not can_review(db, user):
         raise DomainError("Published posts cannot be edited")
 
     return update_post_record(db, post, **_dump_post_data(payload))
@@ -120,7 +123,7 @@ def delete_post(db: Session, *, user: User, post_id: uuid.UUID) -> None:
     """Delete a post. Only the author (or a reviewer) may delete it."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
-    if post.author_id != user.id and not _can_review(db, user):
+    if post.author_id != user.id and not can_review(db, user):
         raise DomainError("You can only delete your own posts")
 
     delete_post_record(db, post)
@@ -130,7 +133,7 @@ def submit_for_review(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
     """Submit a draft (or unpublished) post for admin review."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
-    if post.author_id != user.id and not _can_review(db, user):
+    if post.author_id != user.id and not can_review(db, user):
         raise DomainError("You can only submit your own posts")
     if post.status not in (PostStatus.draft, PostStatus.unpublished):
         raise DomainError(
@@ -144,7 +147,7 @@ def publish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
     """Publish a post that is pending review (reviewers only)."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
-    if not _can_review(db, user):
+    if not can_review(db, user):
         raise DomainError("You do not have permission to publish posts")
     if post.status != PostStatus.pending_review:
         raise DomainError("Only posts pending review can be published")
@@ -156,7 +159,7 @@ def unpublish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
     """Unpublish a published post (reviewers only)."""
     post = get_post_or_404(db, user=user, post_id=post_id)
 
-    if not _can_review(db, user):
+    if not can_review(db, user):
         raise DomainError("You do not have permission to unpublish posts")
     if post.status != PostStatus.published:
         raise DomainError("Only published posts can be unpublished")
@@ -166,5 +169,5 @@ def unpublish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
 
 def get_post_status_counts(db: Session, *, user: User) -> dict[PostStatus, int]:
     """Return post counts per status visible to the current user."""
-    author_id = None if _can_review(db, user) else user.id
+    author_id = None if can_review(db, user) else user.id
     return count_posts_by_status(db, author_id=author_id)

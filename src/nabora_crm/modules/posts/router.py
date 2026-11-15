@@ -11,7 +11,7 @@ from nabora_crm.core.permissions import (
 )
 from nabora_crm.db.session import get_db
 from nabora_crm.modules.auth.dependencies import require_permission
-from nabora_crm.modules.posts.models import PostSection, PostStatus
+from nabora_crm.modules.posts.models import PostSection, PostStatus, PostTopic
 from nabora_crm.modules.posts.schemas import (
     PaginatedPosts,
     PostCreate,
@@ -21,6 +21,7 @@ from nabora_crm.modules.posts.schemas import (
     PostUpdate,
 )
 from nabora_crm.modules.posts.service import (
+    can_review,
     create_post,
     delete_post,
     get_post_or_404,
@@ -50,6 +51,7 @@ def create_post_endpoint(
 @router.get("", response_model=PaginatedPosts)
 def list_posts_endpoint(
     section: PostSection | None = None,
+    topic: PostTopic | None = None,
     status: PostStatus | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -61,15 +63,24 @@ def list_posts_endpoint(
         db,
         user=user,
         section=section,
+        topic=topic,
         status=status,
         offset=(page - 1) * page_size,
         limit=page_size,
     )
+    # Only reviewers (e.g. admins) get the author's name; other users only
+    # see their own posts and do not need it.
+    show_author_name = can_review(db, user)
     items = [
         PostListItem(
             **PostOut.model_validate(post).model_dump(),
             title=post.headline,
             author=post.author_email,
+            author_name=(
+                post.author.full_name
+                if show_author_name and post.author is not None
+                else None
+            ),
         )
         for post in posts
     ]
