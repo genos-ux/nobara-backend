@@ -1,5 +1,7 @@
 """Tests for the posts CRUD endpoints."""
 
+import uuid
+
 import pytest
 
 from nabora_crm.core.security import hash_password
@@ -220,7 +222,28 @@ def test_list_and_filter_posts(client, contributor_headers):
     ids = {p["id"] for p in posts}
     assert fitness["id"] in ids
     assert nutrition["id"] not in ids
-    assert {"title", "author", "topic", "status", "updated_at"} <= set(posts[0])
+    expected_keys = {
+        "id",
+        "headline",
+        "introduction",
+        "evidence_explanation",
+        "practical_guidance",
+        "sources_references",
+        "section",
+        "topic",
+        "image_url",
+        "placeholder_color",
+        "status",
+        "author_id",
+        "author_email",
+        "created_at",
+        "updated_at",
+        "title",
+        "author",
+    }
+    assert expected_keys <= set(posts[0])
+    assert posts[0]["title"] == posts[0]["headline"]
+    assert posts[0]["author"] == posts[0]["author_email"]
 
 
 def test_status_filter_and_pagination(client, contributor_headers):
@@ -270,3 +293,93 @@ def test_contributor_sees_only_own_posts_admin_sees_all(
     assert admin_list.status_code == 200
     admin_ids = {p["id"] for p in admin_list.json()["items"]}
     assert admin_post_id in admin_ids
+
+
+def _ensure_role(client, admin_headers, name, permission_names):
+    """Create a custom role or return the existing one's ID."""
+    created = client.post(
+        "/v1/roles",
+        json={"name": name, "permission_names": permission_names},
+        headers=admin_headers,
+    )
+    if created.status_code == 201:
+        return created.json()["id"]
+    assert created.status_code == 400, created.text
+    roles = client.get("/v1/roles", headers=admin_headers).json()
+    return next(r["id"] for r in roles if r["name"] == name)
+
+
+def _create_user_with_role(email, password, role_id):
+    """Create or update a user with the given role directly in the DB."""
+    role_uuid = uuid.UUID(str(role_id))
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            user = User(
+                email=email,
+                hashed_password=hash_password(password),
+                role_id=role_uuid,
+                is_active=True,
+            )
+            db.add(user)
+        else:
+            user.hashed_password = hash_password(password)
+            user.role_id = role_uuid
+            user.is_active = True
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_list_posts_visibility_is_permission_based(
+    client, admin_headers, contributor_headers
+):
+    """posts:review grants the all-posts view regardless of the role name."""
+    shared = client.post(
+        "/v1/posts",
+        json=_payload(topic="permission-visibility-shared"),
+        headers=contributor_headers,
+    )
+    assert shared.status_code == 201, shared.text
+    shared_id = shared.json()["id"]
+
+    author_role_id = _ensure_role(
+        client,
+        admin_headers,
+        "custom-author",
+        ["posts:read", "posts:write"],
+    )
+    _create_user_with_role("custom-author@test.example", "custompass123", author_role_id)
+    author_headers = _login(client, "custom-author@test.example", "custompass123")
+
+    own = client.post(
+        "/v1/posts",
+        json=_payload(topic="permission-visibility-own"),
+        headers=author_headers,
+    )
+    assert own.status_code == 201, own.text
+    own_id = own.json()["id"]
+
+    author_list = client.get("/v1/posts", headers=author_headers)
+    assert author_list.status_code == 200, author_list.text
+    author_ids = {p["id"] for p in author_list.json()["items"]}
+    assert own_id in author_ids
+    assert shared_id not in author_ids
+
+    reviewer_role_id = _ensure_role(
+        client,
+        admin_headers,
+        "custom-reviewer",
+        ["posts:read", "posts:review"],
+    )
+    _create_user_with_role(
+        "custom-reviewer@test.example", "custompass123", reviewer_role_id
+    )
+    reviewer_headers = _login(client, "custom-reviewer@test.example", "custompass123")
+
+    reviewer_list = client.get("/v1/posts", headers=reviewer_headers)
+    assert reviewer_list.status_code == 200, reviewer_list.text
+    reviewer_ids = {p["id"] for p in reviewer_list.json()["items"]}
+    assert shared_id in reviewer_ids
+    assert own_id in reviewer_ids

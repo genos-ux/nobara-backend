@@ -67,12 +67,9 @@ def list_posts_endpoint(
     )
     items = [
         PostListItem(
-            id=post.id,
+            **PostOut.model_validate(post).model_dump(),
             title=post.headline,
             author=post.author_email,
-            topic=post.topic,
-            status=post.status,
-            updated_at=post.updated_at,
         )
         for post in posts
     ]

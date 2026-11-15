@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from nabora_crm.modules.posts.models import PostSection, PostStatus
 
@@ -15,7 +15,27 @@ class UserOut(BaseModel):
     is_email_pending: bool
 
 
-class ContributorPostOut(BaseModel):
+class UserUpdate(BaseModel):
+    """Admin updates a user's personal details and role."""
+
+    full_name: str | None = Field(default=None, min_length=1)
+    email: EmailStr | None = None
+    role_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> "UserUpdate":
+        if (
+            self.full_name is None
+            and self.email is None
+            and self.role_id is None
+        ):
+            raise ValueError(
+                "Provide at least one of 'full_name', 'email', or 'role_id'"
+            )
+        return self
+
+
+class UserPostOut(BaseModel):
     id: uuid.UUID
     headline: str | None
     topic: str
@@ -24,7 +44,7 @@ class ContributorPostOut(BaseModel):
     updated_at: datetime
 
 
-class ContributorOut(BaseModel):
+class UserListItem(BaseModel):
     id: uuid.UUID
     full_name: str | None
     email: str
@@ -33,11 +53,11 @@ class ContributorOut(BaseModel):
     is_pending: bool
     is_email_pending: bool
     post_count: int
-    posts: list[ContributorPostOut]
+    posts: list[UserPostOut]
 
 
-class PaginatedContributors(BaseModel):
-    items: list[ContributorOut]
+class PaginatedUsers(BaseModel):
+    items: list[UserListItem]
     total: int
     page: int
     page_size: int

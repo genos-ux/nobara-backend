@@ -18,8 +18,14 @@ def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 
 
-def _contributor_conditions(*, search: str | None = None) -> list:
-    conditions = [Role.name == "contributor"]
+def _user_conditions(
+    *,
+    search: str | None = None,
+    role_id: uuid.UUID | None = None,
+) -> list:
+    conditions = []
+    if role_id is not None:
+        conditions.append(User.role_id == role_id)
     if search:
         pattern = f"%{search.strip()}%"
         conditions.append(
@@ -28,18 +34,19 @@ def _contributor_conditions(*, search: str | None = None) -> list:
     return conditions
 
 
-def list_contributors(
+def list_users(
     db: Session,
     *,
     search: str | None = None,
+    role_id: uuid.UUID | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> list[User]:
-    """Return contributors matching the search term, with pagination."""
+    """Return users matching the search and role filters, with pagination."""
     stmt = (
         select(User)
         .join(Role, User.role_id == Role.id)
-        .where(*_contributor_conditions(search=search))
+        .where(*_user_conditions(search=search, role_id=role_id))
         .options(selectinload(User.role))
         .order_by(User.full_name, User.email)
     )
@@ -50,13 +57,18 @@ def list_contributors(
     return list(db.execute(stmt).scalars().all())
 
 
-def count_contributors(db: Session, *, search: str | None = None) -> int:
-    """Count contributors matching the search term."""
+def count_users(
+    db: Session,
+    *,
+    search: str | None = None,
+    role_id: uuid.UUID | None = None,
+) -> int:
+    """Count users matching the search and role filters."""
     stmt = (
         select(func.count())
         .select_from(User)
         .join(Role, User.role_id == Role.id)
-        .where(*_contributor_conditions(search=search))
+        .where(*_user_conditions(search=search, role_id=role_id))
     )
     return db.execute(stmt).scalar_one()
 

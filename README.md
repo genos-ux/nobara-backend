@@ -102,7 +102,9 @@ No circular dependencies exist. Each layer depends only on layers below it.
 | POST | `/v1/auth/logout` | Bearer | Logout (client discards tokens) |
 | POST | `/v1/auth/refresh` | Refresh token | Issue new access token |
 | GET | `/v1/auth/me` | Bearer | Current user profile (role + permissions) |
+| GET | `/v1/users` | `users:read` | List users (filter by `role_id`, search, paginate) |
 | GET | `/v1/users/{id}` | `users:read` | Get a user by ID |
+| PATCH | `/v1/users/{id}` | `users:write` | Update a user's name, email, and/or role |
 | PATCH | `/v1/users/{id}/deactivate` | `users:write` | Deactivate a user account |
 | PATCH | `/v1/users/{id}/activate` | `users:write` | Reactivate a user account |
 | GET | `/v1/roles` | `roles:read` | List all roles with permissions |

@@ -75,7 +75,7 @@ def test_list_contributors_includes_posts_and_status(
     assert post.status_code == 201, post.text
     post_id = post.json()["id"]
 
-    resp = client.get("/v1/users/contributors", headers=admin_headers)
+    resp = client.get("/v1/users", headers=admin_headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["page"] == 1
@@ -114,7 +114,7 @@ def test_list_contributors_search_and_pagination(
         assert resp.status_code == 201, resp.text
 
     found = client.get(
-        "/v1/users/contributors", params={"search": "alpha"}, headers=admin_headers
+        "/v1/users", params={"search": "alpha"}, headers=admin_headers
     )
     assert found.status_code == 200, found.text
     body = found.json()
@@ -122,7 +122,7 @@ def test_list_contributors_search_and_pagination(
     assert body["items"][0]["email"] == "search.alpha@test.example"
 
     by_email = client.get(
-        "/v1/users/contributors",
+        "/v1/users",
         params={"search": "search.beta@"},
         headers=admin_headers,
     )
@@ -130,7 +130,7 @@ def test_list_contributors_search_and_pagination(
     assert by_email.json()["items"][0]["full_name"] == "Search Beta"
 
     paged = client.get(
-        "/v1/users/contributors",
+        "/v1/users",
         params={"search": "search.", "page": 1, "page_size": 1},
         headers=admin_headers,
     )
@@ -141,12 +141,55 @@ def test_list_contributors_search_and_pagination(
     assert len(paged_body["items"]) == 1
 
     page2 = client.get(
-        "/v1/users/contributors",
+        "/v1/users",
         params={"search": "search.", "page": 2, "page_size": 1},
         headers=admin_headers,
     )
     assert page2.status_code == 200, page2.text
     assert page2.json()["items"][0]["email"] != paged_body["items"][0]["email"]
+
+
+def _role_id(client, admin_headers, role_name):
+    resp = client.get("/v1/roles", headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+    for role in resp.json():
+        if role["name"] == role_name:
+            return role["id"]
+    pytest.fail(f"{role_name} role not found")
+
+
+def test_list_users_includes_all_and_filters_by_role(client, admin_headers):
+    """GET /users returns everyone and can filter by role ID."""
+    everyone = client.get("/v1/users", headers=admin_headers)
+    assert everyone.status_code == 200, everyone.text
+    all_emails = {item["email"] for item in everyone.json()["items"]}
+    assert "admin@test.example" in all_emails
+
+    contributor_role_id = _role_id(client, admin_headers, "contributor")
+    contributors = client.get(
+        "/v1/users",
+        params={"role_id": contributor_role_id, "page_size": 100},
+        headers=admin_headers,
+    )
+    assert contributors.status_code == 200, contributors.text
+    contributor_items = contributors.json()["items"]
+    assert contributor_items
+    assert all(item["role"] == "contributor" for item in contributor_items)
+    assert "admin@test.example" not in {
+        item["email"] for item in contributor_items
+    }
+
+    admin_role_id = _role_id(client, admin_headers, "admin")
+    admins = client.get(
+        "/v1/users",
+        params={"role_id": admin_role_id},
+        headers=admin_headers,
+    )
+    assert admins.status_code == 200, admins.text
+    assert all(item["role"] == "admin" for item in admins.json()["items"])
+    assert "admin@test.example" in {
+        item["email"] for item in admins.json()["items"]
+    }
 
 
 def test_contributors_requires_permission(client):
@@ -159,5 +202,5 @@ def test_contributors_requires_permission(client):
         pytest.skip("contributor fixture user not available")
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
-    resp = client.get("/v1/users/contributors", headers=headers)
+    resp = client.get("/v1/users", headers=headers)
     assert resp.status_code == 403

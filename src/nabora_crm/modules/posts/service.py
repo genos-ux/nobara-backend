@@ -25,6 +25,11 @@ def _has_permission(db: Session, user: User, permission: str) -> bool:
 
 
 def _can_review(db: Session, user: User) -> bool:
+    """Return True when the user's role grants ``posts:review``.
+
+    Visibility is driven by permissions, not role names, so renaming a role
+    does not change who can see every post.
+    """
     return _has_permission(db, user, POSTS_REVIEW)
 
 
@@ -55,8 +60,10 @@ def list_posts(
 ) -> tuple[list[Post], int]:
     """List posts visible to the current user, with pagination metadata.
 
-    Reviewers (admin) see every post; other users see only the posts they
-    created. Returns ``(posts, total)``.
+    Users whose role grants ``posts:review`` see every post (the admin
+    overview of contributor work); everyone else sees only their own posts.
+    Visibility is permission-based, not role-name-based. Returns
+    ``(posts, total)``.
     """
     author_id = None if _can_review(db, user) else user.id
 

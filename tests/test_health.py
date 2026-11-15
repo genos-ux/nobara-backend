@@ -373,6 +373,48 @@ class TestUserManagement:
         finally:
             db.close()
 
+    def _role_id(self, client, headers, name):
+        """Return a role ID by name via the roles API."""
+        resp = client.get("/v1/roles", headers=headers)
+        assert resp.status_code == 200, resp.text
+        for role in resp.json():
+            if role["name"] == name:
+                return role["id"]
+        raise AssertionError(f"{name} role not found")
+
+    def test_admin_can_update_user_role(self, client):
+        """Admin can change a user's role."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="role-change@example.com")
+        admin_role_id = self._role_id(client, headers, "admin")
+
+        response = client.patch(
+            f"/v1/users/{user_id}",
+            json={"role_id": admin_role_id},
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["role"] == "admin"
+
+        fetched = client.get(f"/v1/users/{user_id}", headers=headers)
+        assert fetched.status_code == 200
+        assert fetched.json()["role"] == "admin"
+
+    def test_update_user_invalid_role(self, client):
+        """Changing to a non-existent role is rejected."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="bad-role@example.com")
+        fake_role_id = "00000000-0000-0000-0000-000000000000"
+
+        response = client.patch(
+            f"/v1/users/{user_id}",
+            json={"role_id": fake_role_id},
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert "Role with id" in response.json()["detail"]
+        assert "not found" in response.json()["detail"]
+
     def test_admin_can_get_user(self, client):
         """Admin can fetch a user by ID."""
         headers = self._admin_headers(client)
@@ -385,6 +427,68 @@ class TestUserManagement:
         assert data["email"] == "admin@test.example"
         assert data["role"] == "admin"
         assert data["is_active"] is True
+
+    def test_admin_can_update_user_details(self, client):
+        """Admin can update a user's name and email."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="update-me@example.com")
+
+        response = client.patch(
+            f"/v1/users/{user_id}",
+            json={
+                "full_name": "Updated Person",
+                "email": "updated@example.com",
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["full_name"] == "Updated Person"
+        assert data["email"] == "updated@example.com"
+
+        fetched = client.get(f"/v1/users/{user_id}", headers=headers)
+        assert fetched.status_code == 200
+        assert fetched.json()["full_name"] == "Updated Person"
+        assert fetched.json()["email"] == "updated@example.com"
+
+    def test_update_user_email_conflict_rejected(self, client):
+        """Updating to an email already in use is rejected."""
+        headers = self._admin_headers(client)
+        first_id = self._create_test_user(client, email="first@example.com")
+        self._create_test_user(client, email="second@example.com")
+
+        response = client.patch(
+            f"/v1/users/{first_id}",
+            json={"email": "second@example.com"},
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert "already exists in the system" in response.json()["detail"]
+
+    def test_update_user_requires_at_least_one_field(self, client):
+        """An empty update payload is rejected."""
+        headers = self._admin_headers(client)
+        user_id = self._create_test_user(client, email="empty-update@example.com")
+
+        response = client.patch(
+            f"/v1/users/{user_id}",
+            json={},
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+    def test_update_nonexistent_user(self, client):
+        """Updating a non-existent user returns 400."""
+        headers = self._admin_headers(client)
+        fake_id = "00000000-0000-0000-0000-000000000000"
+
+        response = client.patch(
+            f"/v1/users/{fake_id}",
+            json={"full_name": "Nobody"},
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"]
 
     def test_deactivate_user(self, client):
         """Admin can deactivate a user."""
@@ -421,5 +525,7 @@ class TestUserManagement:
         """Unauthenticated requests to users endpoints return 401."""
         fake_id = "00000000-0000-0000-0000-000000000000"
         assert client.get(f"/v1/users/{fake_id}").status_code == 401
+        assert client.get("/v1/users").status_code == 401
+        assert client.patch(f"/v1/users/{fake_id}", json={"full_name": "x"}).status_code == 401
         assert client.patch(f"/v1/users/{fake_id}/deactivate").status_code == 401
         assert client.patch(f"/v1/users/{fake_id}/activate").status_code == 401

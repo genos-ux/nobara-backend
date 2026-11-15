@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
 from nabora_crm.modules.posts.models import Post
+from nabora_crm.modules.roles.repository import get_role_by_id
 from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import (
-    count_contributors,
+    count_users,
     get_posts_by_author_ids,
+    get_user_by_email,
     get_user_by_id,
-    list_contributors as list_contributor_records,
+    list_users as list_user_records,
 )
 
 
@@ -30,19 +32,56 @@ def set_user_active(db: Session, user: User, is_active: bool) -> User:
     return user
 
 
-def list_contributors(
+def update_user_details(
+    db: Session,
+    user: User,
+    *,
+    full_name: str | None = None,
+    email: str | None = None,
+    role_id: uuid.UUID | None = None,
+) -> User:
+    """Update a user's personal details and role, then commit.
+
+    Raises:
+        DomainError: If the new email is already used by another user, or the
+                     role does not exist.
+    """
+    if email is not None and email != user.email:
+        existing = get_user_by_email(db, email)
+        if existing is not None and existing.id != user.id:
+            raise DomainError(
+                f"A user with email '{email}' already exists in the system"
+            )
+        user.email = email
+
+    if full_name is not None:
+        user.full_name = full_name
+
+    if role_id is not None:
+        role = get_role_by_id(db, role_id)
+        if role is None:
+            raise DomainError(f"Role with id {role_id} not found")
+        user.role_id = role_id
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def list_users(
     db: Session,
     *,
     search: str | None = None,
+    role_id: uuid.UUID | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> tuple[list[tuple[User, list[Post]]], int]:
-    """Return contributors paired with their posts, plus the total count."""
-    contributors = list_contributor_records(
-        db, search=search, offset=offset, limit=limit
+    """Return users paired with their posts, plus the total count."""
+    users = list_user_records(
+        db, search=search, role_id=role_id, offset=offset, limit=limit
     )
     posts_by_author: dict[uuid.UUID, list[Post]] = defaultdict(list)
-    for post in get_posts_by_author_ids(db, [c.id for c in contributors]):
+    for post in get_posts_by_author_ids(db, [u.id for u in users]):
         posts_by_author[post.author_id].append(post)
-    results = [(c, posts_by_author[c.id]) for c in contributors]
-    return results, count_contributors(db, search=search)
+    results = [(u, posts_by_author[u.id]) for u in users]
+    return results, count_users(db, search=search, role_id=role_id)

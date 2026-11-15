@@ -73,13 +73,15 @@ class PostOut(BaseModel):
     updated_at: datetime
 
 
-class PostListItem(BaseModel):
-    id: uuid.UUID
+class PostListItem(PostOut):
+    """A post in a list, including all post details.
+
+    ``title`` and ``author`` mirror ``headline`` and ``author_email`` for
+    backwards compatibility with existing clients.
+    """
+
     title: str | None
     author: str | None
-    topic: str
-    status: PostStatus
-    updated_at: datetime
 
 
 class PaginatedPosts(BaseModel):
