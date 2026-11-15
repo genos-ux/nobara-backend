@@ -52,7 +52,13 @@ def invite_user(
     )
 
     # Generate invitation token
-    token = create_invitation_token({"sub": str(user.id), "email": user.email})
+    token = create_invitation_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "ver": user.invitation_token_version,
+        }
+    )
 
     # Send the invitation email
     send_invitation_email(
@@ -93,17 +99,36 @@ def resend_invitation(
         identifier = user_id if user_id is not None else email
         raise DomainError(f"No user found for {identifier}")
 
-    if not user.is_pending:
+    if not user.is_email_pending or not user.is_pending:
         raise DomainError(
-            f"User '{user.email}' has already completed setup; no invitation to resend"
+            f"User '{user.email}' has already set up their password; "
+            "no invitation to resend"
         )
 
-    token = create_invitation_token({"sub": str(user.id), "email": user.email})
-    send_invitation_email(
-        to_email=user.email,
-        invite_token=token,
-        inviter_name=inviter_name,
+    # Bump the token version so any previously emailed link stops working.
+    previous_version = user.invitation_token_version
+    user.invitation_token_version = previous_version + 1
+    db.commit()
+
+    token = create_invitation_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "ver": user.invitation_token_version,
+        }
     )
+    try:
+        send_invitation_email(
+            to_email=user.email,
+            invite_token=token,
+            inviter_name=inviter_name,
+        )
+    except EmailSendError:
+        # Restore the old version so the previous link keeps working if the
+        # new email could not be delivered.
+        user.invitation_token_version = previous_version
+        db.commit()
+        raise
 
     logger.info("Invitation re-sent to %s", user.email)
     return user
@@ -129,12 +154,19 @@ def accept_invitation(db: Session, *, token: str, password: str) -> User:
     if user is None:
         raise InvalidTokenError("Invalid invitation token")
 
+    # A newer invitation has been sent, so this link is stale.
+    if payload.get("ver", 0) != user.invitation_token_version:
+        raise InvalidTokenError(
+            "This invitation link is no longer valid. Ask for a new invitation."
+        )
+
     if not user.is_pending:
         raise InvalidTokenError("This invitation has already been used")
 
     # Set password and activate the user
     user.hashed_password = hash_password(password)
     user.is_pending = False
+    user.is_email_pending = False
     db.commit()
     db.refresh(user)
 

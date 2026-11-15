@@ -18,3 +18,4 @@ class UserProfile(BaseModel):
     role: str
     permissions: list[str]
     is_active: bool
+    is_email_pending: bool

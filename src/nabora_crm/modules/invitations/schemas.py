@@ -39,6 +39,7 @@ class InviteUserResponse(BaseModel):
     email: str
     role: str
     is_pending: bool
+    is_email_pending: bool
 
     model_config = {"from_attributes": True}
 

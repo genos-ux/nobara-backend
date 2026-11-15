@@ -44,6 +44,7 @@ def get_contributors(
             role=user.role.name,
             is_active=user.is_active,
             is_pending=user.is_pending,
+            is_email_pending=user.is_email_pending,
             post_count=len(posts),
             posts=[
                 ContributorPostOut(
@@ -83,6 +84,7 @@ def get_user(
         email=user.email,
         role=user.role.name,
         is_active=user.is_active,
+        is_email_pending=user.is_email_pending,
     )
 
 
@@ -101,6 +103,7 @@ def deactivate_user(
         email=user.email,
         role=user.role.name,
         is_active=user.is_active,
+        is_email_pending=user.is_email_pending,
     )
 
 
@@ -119,4 +122,5 @@ def activate_user(
         email=user.email,
         role=user.role.name,
         is_active=user.is_active,
+        is_email_pending=user.is_email_pending,
     )

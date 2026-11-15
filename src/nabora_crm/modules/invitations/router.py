@@ -50,6 +50,7 @@ def create_invitation(
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,
+        is_email_pending=user.is_email_pending,
     )
 
 
@@ -75,6 +76,7 @@ def resend_invitation_endpoint(
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,
+        is_email_pending=user.is_email_pending,
         expires_in_days=settings.INVITATION_TOKEN_EXPIRE_DAYS,
         message=(
             f"Invitation re-sent to {user.email}. "
@@ -99,4 +101,5 @@ def accept_invitation_endpoint(
         email=user.email,
         role=user.role.name,
         is_pending=user.is_pending,
+        is_email_pending=user.is_email_pending,
     )

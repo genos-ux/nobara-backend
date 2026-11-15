@@ -65,6 +65,7 @@ def test_invite_user_success(mock_send_email, client, admin_headers):
     assert data["full_name"] == "New User"
     assert data["email"] == "newuser@test.example"
     assert data["is_pending"] is True
+    assert data["is_email_pending"] is True
     assert data["role"] == "contributor"
     mock_send_email.assert_called_once()
 
@@ -168,6 +169,7 @@ def test_accept_invitation_success(mock_send_email, client, admin_headers):
     data = accept.json()
     assert data["email"] == "acceptme@test.example"
     assert data["is_pending"] is False
+    assert data["is_email_pending"] is False
 
     # User should now be able to log in
     login = client.post(
@@ -306,6 +308,7 @@ def test_resend_invitation_by_user_id(mock_send_email, client, admin_headers):
     assert data["id"] == user_id
     assert data["email"] == "resend-id@test.example"
     assert data["is_pending"] is True
+    assert data["is_email_pending"] is True
     assert data["expires_in_days"] >= 1
     assert "re-sent" in data["message"]
     assert mock_send_email.call_count == 2
@@ -335,6 +338,51 @@ def test_resend_invitation_by_email(mock_send_email, client, admin_headers):
     assert resp.status_code == 200, resp.text
     assert resp.json()["email"] == "resend-email@test.example"
     assert mock_send_email.call_count == 2
+
+
+@patch("nabora_crm.modules.invitations.service.send_invitation_email")
+def test_resend_invalidates_previous_token(mock_send_email, client, admin_headers):
+    """Resending an invitation invalidates the previously emailed link."""
+    role_id = _get_contributor_role_id(client, admin_headers)
+
+    invite = client.post(
+        "/v1/invitations",
+        json={
+            "full_name": "Old Link User",
+            "email": "oldlink@test.example",
+            "role_id": role_id,
+        },
+        headers=admin_headers,
+    )
+    assert invite.status_code == 201
+    user_id = invite.json()["id"]
+
+    old_token = create_invitation_token(
+        {"sub": user_id, "email": "oldlink@test.example"}
+    )
+
+    resp = client.post(
+        "/v1/invitations/resend",
+        json={"user_id": user_id},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    # The old link no longer works.
+    old_accept = client.post(
+        "/v1/invitations/accept",
+        json={"token": old_token, "password": "strongpassword123"},
+    )
+    assert old_accept.status_code == 401
+    assert "no longer valid" in old_accept.json()["detail"]
+
+    # The link from the resend works.
+    new_token = mock_send_email.call_args.kwargs["invite_token"]
+    new_accept = client.post(
+        "/v1/invitations/accept",
+        json={"token": new_token, "password": "strongpassword123"},
+    )
+    assert new_accept.status_code == 200, new_accept.text
 
 
 @patch("nabora_crm.modules.invitations.service.send_invitation_email")
@@ -382,7 +430,7 @@ def test_resend_invitation_completed_user(mock_send_email, client, admin_headers
         headers=admin_headers,
     )
     assert resp.status_code == 400
-    assert "already completed" in resp.json()["detail"]
+    assert "already set up their password" in resp.json()["detail"]
 
 
 @pytest.mark.parametrize(

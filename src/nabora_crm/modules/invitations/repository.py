@@ -33,6 +33,7 @@ def create_pending_user(
         role_id=role_id,
         is_active=True,
         is_pending=True,
+        is_email_pending=True,
     )
     db.add(user)
     db.commit()

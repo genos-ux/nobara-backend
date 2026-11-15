@@ -89,6 +89,7 @@ def test_list_contributors_includes_posts_and_status(
     assert entry["role"] == "contributor"
     assert entry["is_active"] is True
     assert entry["is_pending"] is False
+    assert entry["is_email_pending"] is False
     assert entry["post_count"] == 1
     assert entry["posts"][0]["id"] == post_id
     assert entry["posts"][0]["headline"] == "Contributor post"

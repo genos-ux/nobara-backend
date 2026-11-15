@@ -12,6 +12,7 @@ class UserOut(BaseModel):
     email: str
     role: str
     is_active: bool
+    is_email_pending: bool
 
 
 class ContributorPostOut(BaseModel):
@@ -30,6 +31,7 @@ class ContributorOut(BaseModel):
     role: str
     is_active: bool
     is_pending: bool
+    is_email_pending: bool
     post_count: int
     posts: list[ContributorPostOut]
 

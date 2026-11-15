@@ -55,4 +55,5 @@ def get_profile(
         role=current_user.role.name,
         permissions=current_user.permissions,
         is_active=current_user.is_active,
+        is_email_pending=current_user.is_email_pending,
     )

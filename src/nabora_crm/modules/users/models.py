@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String, Uuid
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nabora_crm.db.base import Base
@@ -20,6 +20,18 @@ class User(Base):
 
     # Invitation state: True until the user sets their own password
     is_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Email invitation state: True until the user sets their own password,
+    # then flipped to False to signal the invitation email is no longer pending.
+    is_email_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+
+    # Incremented every time an invitation is (re)sent. Tokens carry the
+    # version they were issued for, so older links stop working on resend.
+    invitation_token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     role: Mapped["Role"] = relationship(lazy="selectin")  # noqa: F821
 

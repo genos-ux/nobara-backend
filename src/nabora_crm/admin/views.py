@@ -9,7 +9,7 @@ from nabora_crm.modules.users.models import User
 
 class UserAdmin(ModelView, model=User):
     category = "Users"
-    column_list = [User.id, User.email, User.role, User.is_active]
+    column_list = [User.id, User.email, User.role, User.is_active, User.is_email_pending]
 
 
 class RoleAdmin(ModelView, model=Role):
