@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
@@ -121,7 +121,7 @@ def mark_notification_read(db: Session, notification: Notification) -> Notificat
     """Mark a notification as read and commit."""
     if not notification.is_read:
         notification.is_read = True
-        notification.read_at = datetime.utcnow()
+        notification.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
         db.refresh(notification)
     return notification

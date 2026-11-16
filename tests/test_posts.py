@@ -167,6 +167,42 @@ def test_admin_unpublishes_published_post(
     assert resubmitted.json()["status"] == "pending_review"
 
 
+def test_request_changes_and_resubmit(
+    client, contributor_headers, admin_headers
+):
+    created = client.post(
+        "/v1/posts",
+        json=_payload(topic="Health & Wellness"),
+        headers=contributor_headers,
+    )
+    post_id = created.json()["id"]
+    client.post(f"/v1/posts/{post_id}/submit", headers=contributor_headers)
+
+    forbidden = client.post(
+        f"/v1/posts/{post_id}/request-changes",
+        json={"note": "Please add more sources."},
+        headers=contributor_headers,
+    )
+    assert forbidden.status_code == 403
+
+    requested = client.post(
+        f"/v1/posts/{post_id}/request-changes",
+        json={"note": "Please add more sources."},
+        headers=admin_headers,
+    )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["status"] == "changes_requested"
+    assert requested.json()["review_note"] == "Please add more sources."
+
+    resubmitted = client.post(
+        f"/v1/posts/{post_id}/submit",
+        headers=contributor_headers,
+    )
+    assert resubmitted.status_code == 200, resubmitted.text
+    assert resubmitted.json()["status"] == "pending_review"
+    assert resubmitted.json()["review_note"] is None
+
+
 def test_post_status_counts(client, contributor_headers):
     before = client.get("/v1/posts/stats", headers=contributor_headers)
     assert before.status_code == 200, before.text
@@ -190,6 +226,7 @@ def test_post_status_counts(client, contributor_headers):
     assert after["total"] == (
         after["draft"]
         + after["pending_review"]
+        + after["changes_requested"]
         + after["published"]
         + after["unpublished"]
     )

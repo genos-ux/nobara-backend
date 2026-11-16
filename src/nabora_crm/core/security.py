@@ -76,6 +76,7 @@ def create_stream_ticket(user_id: uuid.UUID, email: str) -> str:
         "sub": str(user_id),
         "email": email,
         "exp": expire,
+        "jti": str(uuid.uuid4()),
         "type": "sse",
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

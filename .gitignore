@@ -16,3 +16,6 @@ build/
 # IDE
 .vscode/
 .idea/
+
+# Test database
+test.db

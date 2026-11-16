@@ -108,11 +108,31 @@ No circular dependencies exist. Each layer depends only on layers below it.
 | PATCH | `/v1/users/{id}` | `users:write` | Update a user's name, email, and/or role |
 | PATCH | `/v1/users/{id}/deactivate` | `users:write` | Deactivate a user account |
 | PATCH | `/v1/users/{id}/activate` | `users:write` | Reactivate a user account |
+| POST | `/v1/invitations` | `invitations:write` | Invite a new user by email |
+| POST | `/v1/invitations/resend` | `invitations:write` | Re-send an invitation email |
+| POST | `/v1/invitations/accept` | Invite token | Accept an invitation and set a password |
 | GET | `/v1/roles` | `roles:read` | List all roles with permissions |
 | POST | `/v1/roles` | `roles:write` | Create a new role |
 | PUT | `/v1/roles/{id}` | `roles:write` | Update a role (name, description, permissions) |
 | DELETE | `/v1/roles/{id}` | `roles:delete` | Delete a non-system role |
 | GET | `/v1/roles/permissions` | `roles:read` | List all available permissions |
+| POST | `/v1/posts` | `posts:write` | Create a post |
+| GET | `/v1/posts` | `posts:read` | List visible posts |
+| GET | `/v1/posts/stats` | `posts:read` | Count posts by status |
+| GET | `/v1/posts/{id}` | `posts:read` | Get a post |
+| PATCH | `/v1/posts/{id}` | `posts:write` | Update a post |
+| DELETE | `/v1/posts/{id}` | `posts:delete` | Delete a post |
+| POST | `/v1/posts/{id}/submit` | `posts:write` | Submit a post for review |
+| POST | `/v1/posts/{id}/request-changes` | `posts:review` | Request changes with a review note |
+| POST | `/v1/posts/{id}/publish` | `posts:review` | Publish a post |
+| POST | `/v1/posts/{id}/unpublish` | `posts:review` | Unpublish a post |
+| GET | `/v1/notifications` | Bearer | List the current user's notifications |
+| GET | `/v1/notifications/unread-count` | Bearer | Get the unread notification count |
+| POST | `/v1/notifications/read-all` | Bearer | Mark all notifications as read |
+| PATCH | `/v1/notifications/{id}/read` | Bearer | Mark one notification as read |
+| POST | `/v1/notifications/stream-ticket` | Bearer | Get a short-lived SSE ticket |
+| GET | `/v1/notifications/stream` | SSE ticket | Open the notification SSE stream |
+| POST | `/v1/uploads` | Bearer | Upload a file to Cloudinary |
 | * | `/admin/*` | Session (admin) | SQLAdmin dashboard |
 
 Interactive API docs available at `/docs` (Swagger) and `/redoc` (ReDoc) when running.

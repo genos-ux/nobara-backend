@@ -12,14 +12,22 @@ Covers:
 - Route registration in the OpenAPI schema
 """
 
+import asyncio
 import uuid
+from unittest.mock import patch
 
 import pytest
 
-from nabora_crm.core.security import create_stream_ticket, hash_password
+from nabora_crm.core.security import (
+    create_invitation_token,
+    create_stream_ticket,
+    hash_password,
+)
 from nabora_crm.db.session import SessionLocal
+from nabora_crm.modules.notifications.broker import NotificationBroker
 from nabora_crm.modules.notifications.models import Notification, NotificationType
 from nabora_crm.modules.notifications.repository import create_notification
+from nabora_crm.modules.notifications.service import notify_user
 from nabora_crm.modules.roles.models import Role
 from nabora_crm.modules.users.models import User
 
@@ -150,23 +158,23 @@ class TestNotificationRoutes:
 class TestNotificationAuth:
     def test_list_requires_auth(self, client):
         resp = client.get("/v1/notifications")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_unread_count_requires_auth(self, client):
         resp = client.get("/v1/notifications/unread-count")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_read_all_requires_auth(self, client):
         resp = client.post("/v1/notifications/read-all")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_stream_ticket_requires_auth(self, client):
         resp = client.post("/v1/notifications/stream-ticket")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_mark_read_requires_auth(self, client):
         resp = client.patch(f"/v1/notifications/{uuid.uuid4()}/read")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -340,11 +348,11 @@ class TestMarkAllRead:
         client.post("/v1/notifications/read-all", headers=headers_a)
 
         # B's notification should still be unread
-        count_resp = client.get("/v1/notifications/unread-count", headers=headers_b(client))
+        headers_b = _login(client, USER_B_EMAIL, USER_B_PASS)
+        count_resp = client.get(
+            "/v1/notifications/unread-count", headers=headers_b
+        )
         assert count_resp.json()["count"] == 1
-
-    def headers_b(self, client):
-        return _login(client, USER_B_EMAIL, USER_B_PASS)
 
 
 # A cleaner approach for the cross-user test above:
@@ -494,25 +502,22 @@ class TestSSEStream:
         assert resp.status_code == 401
 
     def test_valid_ticket_opens_stream(self, client, headers_a, user_a_id):
-        """A freshly-issued ticket successfully opens the SSE stream.
-
-        TestClient reads the full response body, so we can't hold the stream
-        open. We verify the response is 200 and starts with the ``connected``
-        SSE event.
-        """
+        """A freshly-issued ticket successfully opens the SSE stream."""
         ticket_resp = client.post(
             "/v1/notifications/stream-ticket", headers=headers_a
         )
         ticket = ticket_resp.json()["ticket"]
 
-        resp = client.get(
+        with client.stream(
+            "GET",
             "/v1/notifications/stream",
             params={"ticket": ticket},
-        )
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/event-stream")
-        # The first event must be "connected"
-        assert "event: connected" in resp.text
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith(
+                "text/event-stream"
+            )
+            assert next(response.iter_lines()) == "event: connected"
 
     def test_stream_includes_initial_missed_notifications(
         self, client, headers_a, user_a_id
@@ -530,13 +535,15 @@ class TestSSEStream:
             "/v1/notifications/stream-ticket", headers=headers_a
         ).json()["ticket"]
 
-        resp = client.get(
+        with client.stream(
+            "GET",
             "/v1/notifications/stream",
             params={"ticket": ticket},
             headers={"Last-Event-ID": str(note_id)},
-        )
-        assert resp.status_code == 200
-        assert "event: connected" in resp.text
+        ) as response:
+            assert response.status_code == 200
+            lines = response.iter_lines()
+            assert next(lines) == "event: connected"
 
 
 # ---------------------------------------------------------------------------
@@ -598,3 +605,307 @@ class TestNotificationTriggers:
         resp = client.get("/v1/notifications", headers=final_headers)
         types = [item["type"] for item in resp.json()["items"]]
         assert NotificationType.PASSWORD_CHANGED in types
+
+
+# ---------------------------------------------------------------------------
+# Additional domain-event coverage
+# ---------------------------------------------------------------------------
+
+
+def _admin_headers(client) -> dict[str, str]:
+    return _login(client, "admin@test.example", "testpass123")
+
+
+def _notification_items(
+    client, headers: dict[str, str], **params
+) -> list[dict]:
+    query = {"page": 1, "page_size": 100}
+    query.update(params)
+    response = client.get("/v1/notifications", params=query, headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["items"]
+
+
+def _find_notification(
+    items: list[dict], notification_type: str, post_id: str | None = None
+) -> dict:
+    return next(
+        item
+        for item in items
+        if item["type"] == notification_type
+        and (post_id is None or item["post_id"] == post_id)
+    )
+
+
+def _post_payload(**overrides) -> dict:
+    payload = {
+        "headline": "Notification trigger post",
+        "practical_guidance": "Eat well.",
+        "section": "nutrition",
+        "topic": "Nutrition Basics",
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestAdditionalNotificationTriggers:
+    def test_post_workflow_notifies_reviewers_and_author(self, client):
+        admin_headers = _admin_headers(client)
+        suffix = uuid.uuid4().hex[:8]
+        email = f"notif-post-{suffix}@test.example"
+        _get_or_create_user(email, "contribpass123", "Post Notifier")
+        contributor_headers = _login(client, email, "contribpass123")
+
+        created = client.post(
+            "/v1/posts", json=_post_payload(), headers=contributor_headers
+        )
+        assert created.status_code == 201, created.text
+        post_id = created.json()["id"]
+
+        submitted = client.post(
+            f"/v1/posts/{post_id}/submit", headers=contributor_headers
+        )
+        assert submitted.status_code == 200, submitted.text
+        _find_notification(
+            _notification_items(client, admin_headers),
+            NotificationType.POST_SUBMITTED,
+            post_id,
+        )
+
+        published = client.post(
+            f"/v1/posts/{post_id}/publish", headers=admin_headers
+        )
+        assert published.status_code == 200, published.text
+        _find_notification(
+            _notification_items(client, contributor_headers),
+            NotificationType.POST_PUBLISHED,
+            post_id,
+        )
+
+        unpublished = client.post(
+            f"/v1/posts/{post_id}/unpublish", headers=admin_headers
+        )
+        assert unpublished.status_code == 200, unpublished.text
+        _find_notification(
+            _notification_items(client, contributor_headers),
+            NotificationType.POST_UNPUBLISHED,
+            post_id,
+        )
+
+        edited = client.patch(
+            f"/v1/posts/{post_id}",
+            json={"headline": "Reviewer edit"},
+            headers=admin_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        _find_notification(
+            _notification_items(client, contributor_headers),
+            NotificationType.POST_UPDATED,
+            post_id,
+        )
+
+        deleted = client.delete(f"/v1/posts/{post_id}", headers=admin_headers)
+        assert deleted.status_code == 204, deleted.text
+        _find_notification(
+            _notification_items(client, contributor_headers),
+            NotificationType.POST_DELETED,
+        )
+
+    def test_pending_post_and_changes_requested_notify(self, client):
+        admin_headers = _admin_headers(client)
+        suffix = uuid.uuid4().hex[:8]
+        email = f"notif-changes-{suffix}@test.example"
+        _get_or_create_user(email, "contribpass123", "Changes Notifier")
+        contributor_headers = _login(client, email, "contribpass123")
+
+        created = client.post(
+            "/v1/posts",
+            json=_post_payload(status="pending_review"),
+            headers=contributor_headers,
+        )
+        assert created.status_code == 201, created.text
+        post_id = created.json()["id"]
+        _find_notification(
+            _notification_items(client, admin_headers),
+            NotificationType.POST_SUBMITTED,
+            post_id,
+        )
+
+        requested = client.post(
+            f"/v1/posts/{post_id}/request-changes",
+            json={"note": "Add references."},
+            headers=admin_headers,
+        )
+        assert requested.status_code == 200, requested.text
+        notification = _find_notification(
+            _notification_items(client, contributor_headers),
+            NotificationType.POST_CHANGES_REQUESTED,
+            post_id,
+        )
+        assert "Add references." in notification["message"]
+
+    def test_role_user_and_account_notifications(self, client):
+        admin_headers = _admin_headers(client)
+        suffix = uuid.uuid4().hex[:8]
+        email = f"notif-user-{suffix}@test.example"
+        password = "contribpass123"
+        user_id = _get_or_create_user(email, password, "User Notifier")
+        headers = _login(client, email, password)
+
+        role_name = f"notification-role-{suffix}"
+        created_role = client.post(
+            "/v1/roles",
+            json={
+                "name": role_name,
+                "permission_names": ["posts:read", "posts:write"],
+            },
+            headers=admin_headers,
+        )
+        assert created_role.status_code == 201, created_role.text
+        role_id = created_role.json()["id"]
+
+        assigned = client.patch(
+            f"/v1/users/{user_id}",
+            json={"role_id": role_id},
+            headers=admin_headers,
+        )
+        assert assigned.status_code == 200, assigned.text
+        _find_notification(
+            _notification_items(client, headers),
+            NotificationType.ROLE_CHANGED,
+        )
+
+        updated_role = client.put(
+            f"/v1/roles/{role_id}",
+            json={"permission_names": ["posts:read"]},
+            headers=admin_headers,
+        )
+        assert updated_role.status_code == 200, updated_role.text
+        _find_notification(
+            _notification_items(client, headers),
+            NotificationType.ROLE_UPDATED,
+        )
+
+        renamed = client.patch(
+            f"/v1/users/{user_id}",
+            json={"full_name": "Renamed User"},
+            headers=admin_headers,
+        )
+        assert renamed.status_code == 200, renamed.text
+        _find_notification(
+            _notification_items(client, headers),
+            NotificationType.USER_UPDATED,
+        )
+
+        client.patch(f"/v1/users/{user_id}/deactivate", headers=admin_headers)
+        client.patch(f"/v1/users/{user_id}/activate", headers=admin_headers)
+        items = _notification_items(client, headers)
+        _find_notification(items, NotificationType.USER_DEACTIVATED)
+        _find_notification(items, NotificationType.USER_ACTIVATED)
+
+        changed = client.post(
+            "/v1/auth/change-password",
+            json={
+                "current_password": password,
+                "new_password": "newcontribpass123",
+            },
+            headers=headers,
+        )
+        assert changed.status_code == 200, changed.text
+        _find_notification(
+            _notification_items(client, headers),
+            NotificationType.PASSWORD_CHANGED,
+        )
+
+    @patch("nabora_crm.modules.invitations.service.send_invitation_email")
+    def test_invitation_accept_notifies_admins_and_welcome_user(
+        self, mock_send_email, client
+    ):
+        admin_headers = _admin_headers(client)
+        suffix = uuid.uuid4().hex[:8]
+        email = f"notif-invite-{suffix}@test.example"
+
+        roles = client.get("/v1/roles", headers=admin_headers).json()
+        role_id = next(role["id"] for role in roles if role["name"] == "contributor")
+
+        invited = client.post(
+            "/v1/invitations",
+            json={
+                "full_name": "Invited Notifier",
+                "email": email,
+                "role_id": role_id,
+            },
+            headers=admin_headers,
+        )
+        assert invited.status_code == 201, invited.text
+
+        token = create_invitation_token(
+            {"sub": invited.json()["id"], "email": email}
+        )
+        accepted = client.post(
+            "/v1/invitations/accept",
+            json={"token": token, "password": "invitepass123"},
+        )
+        assert accepted.status_code == 200, accepted.text
+
+        _find_notification(
+            _notification_items(client, admin_headers),
+            NotificationType.INVITATION_ACCEPTED,
+        )
+        user_headers = _login(client, email, "invitepass123")
+        _find_notification(
+            _notification_items(client, user_headers),
+            NotificationType.WELCOME,
+        )
+
+    def test_mark_read_scoped_to_user(self, client, user_a_id, user_b_id):
+        _clear_notifications(user_a_id)
+        note_id = _seed_notification(user_a_id, title="Scoped notification")
+        headers_a = _login(client, USER_A_EMAIL, USER_A_PASS)
+        headers_b = _login(client, USER_B_EMAIL, USER_B_PASS)
+
+        forbidden = client.patch(
+            f"/v1/notifications/{note_id}/read", headers=headers_b
+        )
+        assert forbidden.status_code == 404
+
+        marked = client.patch(
+            f"/v1/notifications/{note_id}/read", headers=headers_a
+        )
+        assert marked.status_code == 200, marked.text
+        assert marked.json()["is_read"] is True
+
+    def test_notify_user_creates_unread_notification(self, user_a_id):
+        _clear_notifications(user_a_id)
+        db = SessionLocal()
+        try:
+            notification = notify_user(
+                db,
+                user_a_id,
+                notification_type="test_event",
+                title="Direct notification",
+                message="Hello",
+            )[0]
+            assert notification.user_id == user_a_id
+            assert notification.is_read is False
+        finally:
+            db.close()
+
+    def test_broker_delivers_only_to_subscribed_user(self):
+        async def scenario():
+            broker = NotificationBroker()
+            broker.bind_loop(asyncio.get_running_loop())
+            user_id = uuid.uuid4()
+            other_id = uuid.uuid4()
+            queue = broker.subscribe(user_id)
+            other_queue = broker.subscribe(other_id)
+
+            broker.publish(user_id, {"id": "one"})
+            assert await asyncio.wait_for(queue.get(), timeout=1) == {"id": "one"}
+            assert other_queue.empty()
+
+            broker.unsubscribe(user_id, queue)
+            broker.publish(user_id, {"id": "two"})
+            assert queue.empty()
+
+        asyncio.run(scenario())
