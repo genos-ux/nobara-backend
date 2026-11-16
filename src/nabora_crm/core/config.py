@@ -32,13 +32,16 @@ class Settings(BaseSettings):
     # CORS (comma-separated origins)
     CORS_ORIGINS: str = ""
 
-    # Email / SMTP settings
+    # Email / SMTP settings (kept for reference but no longer used for sending)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_USE_TLS: bool = True
     EMAIL_FROM: str = ""
+
+    # Brevo HTTP API key (used for transactional email)
+    BREVO_API_KEY: str = ""
 
     # Cloudinary (file uploads)
     CLOUDINARY_CLOUD_NAME: str = ""

@@ -1,37 +1,22 @@
-"""Email sending service.
+"""Email sending via Brevo's transactional HTTP API (POST /v3/smtp/email).
 
-Uses Python's built-in smtplib so no extra dependency is required.
-Wrap calls in a try/except at the call site — EmailSendError is raised
-on any SMTP failure so the caller can decide whether to surface it.
+Uses urllib so no extra dependency is required.
+Raises EmailSendError on any failure — callers decide whether to surface it.
 """
+import json
 import logging
-import smtplib
-import time
-from email.headerregistry import Address
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import formataddr
+import urllib.error
+import urllib.request
 
 from nabora_crm.core.config import settings
 from nabora_crm.core.exceptions import EmailSendError
 
 logger = logging.getLogger("nabora_crm")
 
-
-def _format_address(display_name: str | None, email: str) -> str:
-    """Return a properly formatted RFC 2822 address string.
-
-    Examples:
-        "Jane Doe" <jane@example.com>
-        jane@example.com          (when display_name is None or empty)
-    """
-    if display_name and display_name.strip():
-        return formataddr((display_name.strip(), email))
-    return email
+_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 def _build_invitation_html(invite_link: str, inviter_name: str | None = None) -> str:
-    """Return the HTML body for an invitation email."""
     greeter = f"{inviter_name} has invited you" if inviter_name else "You have been invited"
     return f"""
     <html>
@@ -61,7 +46,6 @@ def _build_invitation_html(invite_link: str, inviter_name: str | None = None) ->
 
 
 def _build_invitation_text(invite_link: str, inviter_name: str | None = None) -> str:
-    """Return the plain-text body for an invitation email."""
     greeter = f"{inviter_name} has invited you" if inviter_name else "You have been invited"
     return (
         f"{greeter} to join Nabora CRM.\n\n"
@@ -78,71 +62,61 @@ def send_invitation_email(
     to_name: str | None = None,
     inviter_name: str | None = None,
 ) -> None:
-    """Send an invitation email to `to_email` with a password-setup link.
+    """Send an invitation email via Brevo's HTTP API.
 
     Args:
         to_email:     Recipient email address.
         invite_token: Short-lived JWT to embed in the setup link.
-        to_name:      Recipient display name shown in the email client
-                      (e.g. "Jane Doe"). Falls back to the email address
-                      when not provided.
-        inviter_name: Name of the person who sent the invitation, shown in
-                      the email body.
-
-    The link points to ``{FRONTEND_URL}/setup-password?token=<token>``.
+        to_name:      Recipient display name (optional).
+        inviter_name: Sender's name shown in the email body (optional).
 
     Raises:
-        EmailSendError: If the SMTP configuration is missing or the email
-                        could not be delivered.
+        EmailSendError: If BREVO_API_KEY is not set or the request fails.
     """
-    if not settings.SMTP_HOST:
+    if not settings.BREVO_API_KEY:
         raise EmailSendError(
-            "SMTP is not configured. Set SMTP_HOST in your environment."
+            "Brevo API key is not configured. Set BREVO_API_KEY in your environment."
         )
 
     invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/setup-password?token={invite_token}"
 
-    from_address = _format_address("Nabora CRM", settings.EMAIL_FROM or settings.SMTP_USERNAME)
-    to_address = _format_address(to_name, to_email)
+    from_email = settings.EMAIL_FROM or "noreply@nabora.app"
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "You're invited to Nabora CRM — set up your account"
-    msg["From"] = from_address
-    msg["To"] = to_address
+    payload = {
+        "sender": {"name": "Nabora CRM", "email": from_email},
+        "to": [{"email": to_email, "name": to_name or to_email}],
+        "subject": "You're invited to Nabora CRM — set up your account",
+        "htmlContent": _build_invitation_html(invite_link, inviter_name),
+        "textContent": _build_invitation_text(invite_link, inviter_name),
+    }
 
-    msg.attach(MIMEText(_build_invitation_text(invite_link, inviter_name), "plain"))
-    msg.attach(MIMEText(_build_invitation_html(invite_link, inviter_name), "html"))
-
-    def _send_once() -> None:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as server:
-            if settings.SMTP_USE_TLS:
-                server.starttls()
-            if settings.SMTP_USERNAME:
-                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.sendmail(msg["From"], [to_email], msg.as_string())
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        _BREVO_API_URL,
+        data=body,
+        headers={
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
 
     try:
-        _send_once()
-    except (ConnectionResetError, ConnectionAbortedError, OSError) as exc:
-        # Brevo (and other relays) close idle connections after a short
-        # timeout. One silent retry on a fresh connection is enough.
-        logger.warning(
-            "SMTP connection dropped sending to %s (%s) — retrying once",
-            to_email, exc,
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp.read()
+        logger.info("Invitation email sent to %s via Brevo API", to_email)
+    except urllib.error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        logger.error(
+            "Brevo API error sending to %s: %s %s — %s",
+            to_email, exc.code, exc.reason, body_text,
         )
-        try:
-            time.sleep(1)
-            _send_once()
-        except (smtplib.SMTPException, OSError) as retry_exc:
-            logger.error(
-                "Retry also failed sending invitation email to %s: %s",
-                to_email, retry_exc,
-            )
-            raise EmailSendError(
-                f"Failed to send invitation email: {retry_exc}"
-            ) from retry_exc
-    except smtplib.SMTPException as exc:
-        logger.error("Failed to send invitation email to %s: %s", to_email, exc)
-        raise EmailSendError(f"Failed to send invitation email: {exc}") from exc
-
-    logger.info("Invitation email sent to %s", to_email)
+        raise EmailSendError(
+            f"Failed to send invitation email: {exc.code} {exc.reason} — {body_text}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        logger.error("Brevo API unreachable sending to %s: %s", to_email, exc.reason)
+        raise EmailSendError(
+            f"Failed to send invitation email: {exc.reason}"
+        ) from exc
