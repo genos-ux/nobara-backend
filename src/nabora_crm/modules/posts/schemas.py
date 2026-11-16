@@ -23,12 +23,26 @@ def _validate_hex_color(value: str | None) -> str | None:
     return value
 
 
+class SourceReference(BaseModel):
+    """A reference with an author name and a URL."""
+
+    author: str = Field(min_length=1)
+    url: HttpUrl
+
+
+class LinkReference(BaseModel):
+    """A standalone URL-only reference."""
+
+    url: HttpUrl
+
+
 class PostCreate(BaseModel):
     headline: str | None = None
     introduction: str | None = None
     evidence_explanation: str | None = None
     practical_guidance: str = Field(min_length=1)
-    sources_references: str | None = None
+    sources_and_references: list[SourceReference | LinkReference] | None = None
+    link_for_readers: HttpUrl | None = None
     section: PostSectionValue
     topic: PostTopicValue
     image_url: HttpUrl | None = None
@@ -50,7 +64,8 @@ class PostUpdate(BaseModel):
     introduction: str | None = None
     evidence_explanation: str | None = None
     practical_guidance: str | None = Field(default=None, min_length=1)
-    sources_references: str | None = None
+    sources_and_references: list[SourceReference | LinkReference] | None = None
+    link_for_readers: HttpUrl | None = None
     section: PostSectionValue | None = None
     topic: PostTopicValue | None = None
     image_url: HttpUrl | None = None
@@ -67,7 +82,8 @@ class PostOut(BaseModel):
     introduction: str | None
     evidence_explanation: str | None
     practical_guidance: str
-    sources_references: str | None
+    sources_and_references: list[SourceReference | LinkReference] | None
+    link_for_readers: str | None
     review_note: str | None
     section: PostSection
     topic: PostTopic

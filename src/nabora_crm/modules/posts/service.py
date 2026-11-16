@@ -65,6 +65,16 @@ def _dump_post_data(payload: PostCreate | PostUpdate) -> dict:
     data = payload.model_dump(exclude_unset=True)
     if data.get("image_url") is not None:
         data["image_url"] = str(data["image_url"])
+    if data.get("link_for_readers") is not None:
+        data["link_for_readers"] = str(data["link_for_readers"])
+    if data.get("sources_and_references") is not None:
+        # model_dump already converts nested Pydantic models to plain dicts;
+        # HttpUrl values inside LinkReference need str() coercion.
+        data["sources_and_references"] = [
+            {k: str(v) if hasattr(v, "__str__") and not isinstance(v, (str, int, float, bool, type(None))) else v
+             for k, v in entry.items()}
+            for entry in data["sources_and_references"]
+        ]
     return data
 
 

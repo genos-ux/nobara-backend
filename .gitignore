@@ -11,11 +11,7 @@ build/
 
 # Environment variables
 .env
-.env.*
 
 # IDE
 .vscode/
 .idea/
-
-# Test database
-test.db

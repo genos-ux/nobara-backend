@@ -6,6 +6,7 @@ on any SMTP failure so the caller can decide whether to surface it.
 """
 import logging
 import smtplib
+import time
 from email.headerregistry import Address
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -112,14 +113,36 @@ def send_invitation_email(
     msg.attach(MIMEText(_build_invitation_text(invite_link, inviter_name), "plain"))
     msg.attach(MIMEText(_build_invitation_html(invite_link, inviter_name), "html"))
 
-    try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    def _send_once() -> None:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as server:
             if settings.SMTP_USE_TLS:
                 server.starttls()
             if settings.SMTP_USERNAME:
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.sendmail(msg["From"], [to_email], msg.as_string())
-        logger.info("Invitation email sent to %s", to_email)
-    except (smtplib.SMTPException, OSError) as exc:
+
+    try:
+        _send_once()
+    except (ConnectionResetError, ConnectionAbortedError, OSError) as exc:
+        # Brevo (and other relays) close idle connections after a short
+        # timeout. One silent retry on a fresh connection is enough.
+        logger.warning(
+            "SMTP connection dropped sending to %s (%s) — retrying once",
+            to_email, exc,
+        )
+        try:
+            time.sleep(1)
+            _send_once()
+        except (smtplib.SMTPException, OSError) as retry_exc:
+            logger.error(
+                "Retry also failed sending invitation email to %s: %s",
+                to_email, retry_exc,
+            )
+            raise EmailSendError(
+                f"Failed to send invitation email: {retry_exc}"
+            ) from retry_exc
+    except smtplib.SMTPException as exc:
         logger.error("Failed to send invitation email to %s: %s", to_email, exc)
         raise EmailSendError(f"Failed to send invitation email: {exc}") from exc
+
+    logger.info("Invitation email sent to %s", to_email)

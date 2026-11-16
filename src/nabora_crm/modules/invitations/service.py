@@ -60,12 +60,17 @@ def invite_user(
         }
     )
 
-    send_invitation_email(
-        to_email=user.email,
-        invite_token=token,
-        to_name=user.full_name,
-        inviter_name=inviter_name,
-    )
+    try:
+        send_invitation_email(
+            to_email=user.email,
+            invite_token=token,
+            to_name=user.full_name,
+            inviter_name=inviter_name,
+        )
+    except EmailSendError:
+        db.delete(user)
+        db.commit()
+        raise
 
     log_action(
         db,

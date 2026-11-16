@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import JSON, Enum, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nabora_crm.db.base import Base
@@ -38,7 +38,8 @@ class Post(Base):
     introduction: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     practical_guidance: Mapped[str] = mapped_column(Text, nullable=False)
-    sources_references: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sources_and_references: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    link_for_readers: Mapped[str | None] = mapped_column(String, nullable=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     section: Mapped[PostSection] = mapped_column(
