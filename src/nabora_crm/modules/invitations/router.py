@@ -33,16 +33,14 @@ def create_invitation(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(INVITATIONS_WRITE)),
 ) -> InviteUserResponse:
-    """Send an email invitation to a new user.
-
-    Creates a pending user account and emails them a link to set up their password.
-    """
+    """Send an email invitation to a new user."""
     user = invite_user(
         db,
         full_name=payload.full_name,
         email=payload.email,
         role_id=payload.role_id,
         inviter_name=current_user.email,
+        actor=current_user,
     )
     return InviteUserResponse(
         id=user.id,
@@ -60,15 +58,13 @@ def resend_invitation_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(INVITATIONS_WRITE)),
 ) -> ResendInviteResponse:
-    """Re-send an invitation email to a pending user, by user ID or email.
-
-    Generates a fresh token, so this also covers expired invitation links.
-    """
+    """Re-send an invitation email to a pending user."""
     user = resend_invitation(
         db,
         user_id=payload.user_id,
         email=str(payload.email) if payload.email is not None else None,
         inviter_name=current_user.email,
+        actor=current_user,
     )
     return ResendInviteResponse(
         id=user.id,

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from nabora_crm.admin.views import create_admin
@@ -23,7 +25,7 @@ from nabora_crm.core.exceptions import (
     PermissionDeniedError,
     UploadError,
 )
-from nabora_crm.core.logging import setup_logging
+from nabora_crm.core.logging import redact_credentials, setup_logging
 from nabora_crm.db.init_db import init_db
 from nabora_crm.db.session import engine
 from nabora_crm.modules.notifications.broker import notification_broker
@@ -152,6 +154,70 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Request logging middleware
+# ---------------------------------------------------------------------------
+# Logs every inbound request as:
+#   METHOD /path  →  status  Xms  [ip]  body={...redacted...}
+#
+# JSON request bodies are parsed and sensitive fields (passwords, tokens) are
+# replaced with [REDACTED] before the line is written. The raw bytes are never
+# logged. Non-JSON bodies (file uploads, SSE) are skipped silently.
+# ---------------------------------------------------------------------------
+
+_NO_BODY_METHODS = frozenset({"GET", "DELETE", "HEAD", "OPTIONS"})
+_SKIP_BODY_PATHS = frozenset({"/v1/notifications/stream"})
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start = time.monotonic()
+
+        # Read and cache the body so the route handler can still consume it.
+        body = b""
+        content_type = request.headers.get("content-type", "")
+        if (
+            request.method not in _NO_BODY_METHODS
+            and "application/json" in content_type
+            and request.url.path not in _SKIP_BODY_PATHS
+        ):
+            body = await request.body()
+            # Re-inject the body so downstream handlers can read it normally.
+            async def receive():
+                return {"type": "http.request", "body": body}
+            request = Request(request.scope, receive)
+
+        response = await call_next(request)
+
+        elapsed_ms = (time.monotonic() - start) * 1000
+        ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "-")
+
+        if body:
+            safe_body = redact_credentials(body)
+            logger.info(
+                "%s %s → %d  %.0fms  [%s]  body=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                elapsed_ms,
+                ip,
+                safe_body,
+            )
+        else:
+            logger.info(
+                "%s %s → %d  %.0fms  [%s]",
+                request.method,
+                request.url.path,
+                response.status_code,
+                elapsed_ms,
+                ip,
+            )
+
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(api_router, prefix="/v1")
 

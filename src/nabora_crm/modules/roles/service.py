@@ -3,6 +3,8 @@ import uuid
 from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
+from nabora_crm.modules.audit.models import AuditAction
+from nabora_crm.modules.audit.service import log_action
 from nabora_crm.modules.notifications.service import notify_role_members
 from nabora_crm.modules.roles.models import Role
 from nabora_crm.modules.roles.repository import (
@@ -16,6 +18,7 @@ from nabora_crm.modules.roles.repository import (
     get_role_by_name,
     update_role,
 )
+from nabora_crm.modules.users.models import User
 
 
 def list_roles(db: Session) -> list[Role]:
@@ -42,6 +45,7 @@ def create_role_with_permissions(
     name: str,
     description: str | None = None,
     permission_names: list[str],
+    actor: User | None = None,
 ) -> Role:
     """Create a new role with the given permissions."""
     existing = get_role_by_name(db, name)
@@ -51,13 +55,23 @@ def create_role_with_permissions(
     _validate_permission_names(db, permission_names)
 
     permissions = get_permissions_by_names(db, permission_names)
-    return create_role(
+    role = create_role(
         db,
         name=name,
         description=description,
         is_system=False,
         permissions=permissions,
     )
+    log_action(
+        db,
+        action=AuditAction.ROLE_CREATED,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
+        resource_type="role",
+        resource_id=str(role.id),
+        detail=f"Role '{role.name}' created with permissions: {', '.join(permission_names)}.",
+    )
+    return role
 
 
 def update_role_with_permissions(
@@ -67,6 +81,7 @@ def update_role_with_permissions(
     name: str | None = None,
     description: str | None = None,
     permission_names: list[str] | None = None,
+    actor: User | None = None,
 ) -> Role:
     """Update a role's fields and/or permissions."""
     if name is not None and name != role.name:
@@ -99,14 +114,34 @@ def update_role_with_permissions(
     if role.name != previous_name or permissions_changed:
         notify_role_members(db, role.id, role.name)
 
+    log_action(
+        db,
+        action=AuditAction.ROLE_UPDATED,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
+        resource_type="role",
+        resource_id=str(role.id),
+        detail=f"Role '{role.name}' updated.",
+    )
     return role
 
 
-def remove_role(db: Session, role: Role) -> None:
+def remove_role(db: Session, role: Role, *, actor: User | None = None) -> None:
     """Delete a non-system role."""
     if role.is_system:
         raise DomainError("System roles cannot be deleted")
+    role_name = role.name
+    role_id = str(role.id)
     delete_role(db, role)
+    log_action(
+        db,
+        action=AuditAction.ROLE_DELETED,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
+        resource_type="role",
+        resource_id=role_id,
+        detail=f"Role '{role_name}' deleted.",
+    )
 
 
 def _validate_permission_names(db: Session, names: list[str]) -> None:

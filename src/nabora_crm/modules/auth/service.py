@@ -14,6 +14,8 @@ from nabora_crm.core.security import (
     hash_password,
     verify_password,
 )
+from nabora_crm.modules.audit.models import AuditAction
+from nabora_crm.modules.audit.service import log_action
 from nabora_crm.modules.notifications.models import NotificationType
 from nabora_crm.modules.notifications.service import (
     ensure_welcome_notification,
@@ -27,14 +29,56 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
     """Verify credentials and return the user, or raise a domain exception."""
     user = get_user_by_email(db, email)
     if not user:
+        log_action(
+            db,
+            action=AuditAction.LOGIN,
+            actor_email=email,
+            detail=f"Failed login attempt for unknown email '{email}'.",
+        )
         raise AuthenticationError("Incorrect email or password")
     if user.is_pending:
+        log_action(
+            db,
+            action=AuditAction.LOGIN,
+            actor_id=user.id,
+            actor_email=user.email,
+            resource_type="user",
+            resource_id=str(user.id),
+            detail=f"Failed login attempt for '{email}' — account not set up yet.",
+        )
         raise AuthenticationError("Account not set up — please use the invitation link")
     if not verify_password(password, user.hashed_password):
+        log_action(
+            db,
+            action=AuditAction.LOGIN,
+            actor_id=user.id,
+            actor_email=user.email,
+            resource_type="user",
+            resource_id=str(user.id),
+            detail=f"Failed login attempt for '{email}' — wrong password.",
+        )
         raise AuthenticationError("Incorrect email or password")
     if not user.is_active:
+        log_action(
+            db,
+            action=AuditAction.LOGIN,
+            actor_id=user.id,
+            actor_email=user.email,
+            resource_type="user",
+            resource_id=str(user.id),
+            detail=f"Failed login attempt for '{email}' — account inactive.",
+        )
         raise InactiveUserError("Inactive user account")
     ensure_welcome_notification(db, user)
+    log_action(
+        db,
+        action=AuditAction.LOGIN,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"User '{user.email}' logged in.",
+    )
     return user
 
 
@@ -67,6 +111,15 @@ def change_password(
         title="Password changed",
         message="Your password was changed successfully.",
     )
+    log_action(
+        db,
+        action=AuditAction.PASSWORD_CHANGED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"User '{user.email}' changed their password.",
+    )
     return user
 
 
@@ -93,6 +146,16 @@ def refresh_access_token(db: Session, refresh_token: str) -> dict[str, str]:
     user = get_user_by_email(db, email)
     if user is None or not user.is_active:
         raise InvalidRefreshTokenError("Invalid or expired refresh token")
+
+    log_action(
+        db,
+        action=AuditAction.TOKEN_REFRESHED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"User '{user.email}' refreshed their access token.",
+    )
 
     token_data = {"sub": user.email, "role": user.role.name}
     return {"access_token": create_access_token(token_data)}

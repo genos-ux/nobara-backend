@@ -33,6 +33,9 @@ POSTS_REVIEW = "posts:review"
 # Admin panel access
 ADMIN_ACCESS = "admin:access"
 
+# Audit log access
+AUDIT_READ = "audit:read"
+
 ALL_PERMISSIONS: frozenset[str] = frozenset(
     {
         USERS_READ,
@@ -50,5 +53,6 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         POSTS_DELETE,
         POSTS_REVIEW,
         ADMIN_ACCESS,
+        AUDIT_READ,
     }
 )

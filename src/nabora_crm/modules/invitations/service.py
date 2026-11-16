@@ -12,6 +12,8 @@ from nabora_crm.core.security import (
     decode_invitation_token,
     hash_password,
 )
+from nabora_crm.modules.audit.models import AuditAction
+from nabora_crm.modules.audit.service import log_action
 from nabora_crm.modules.invitations.repository import (
     create_pending_user,
     get_user_by_email,
@@ -35,20 +37,13 @@ def invite_user(
     email: str,
     role_id: str,
     inviter_name: str | None = None,
+    actor: User | None = None,
 ) -> User:
-    """Create a pending user and send an invitation email.
-
-    Raises:
-        DomainError: If the email is already in use by an active user.
-        EmailSendError: If the email could not be sent.
-    """
-    # An email may only ever be invited once. Pending users should use the
-    # resend endpoint; active users cannot be invited again.
+    """Create a pending user and send an invitation email."""
     existing = get_user_by_email(db, email)
     if existing is not None:
         raise DomainError(f"A user with email '{email}' already exists in the system")
 
-    # Validate role exists
     role = get_role_by_id(db, role_id)
     if role is None:
         raise DomainError(f"Role with id {role_id} not found")
@@ -57,7 +52,6 @@ def invite_user(
         db, full_name=full_name, email=email, role_id=role_id
     )
 
-    # Generate invitation token
     token = create_invitation_token(
         {
             "sub": str(user.id),
@@ -66,13 +60,21 @@ def invite_user(
         }
     )
 
-    # Send the invitation email
     send_invitation_email(
         to_email=user.email,
         invite_token=token,
         inviter_name=inviter_name,
     )
 
+    log_action(
+        db,
+        action=AuditAction.INVITATION_SENT,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"Invitation sent to '{email}' with role '{role.name}'.",
+    )
     logger.info("Invitation sent to %s", email)
     return user
 
@@ -83,17 +85,9 @@ def resend_invitation(
     user_id: uuid.UUID | None = None,
     email: str | None = None,
     inviter_name: str | None = None,
+    actor: User | None = None,
 ) -> User:
-    """Generate a fresh token and re-send an invitation email.
-
-    Identifies the user by ID or email. Only pending users (who have not yet
-    set their password) can be re-invited.
-
-    Raises:
-        DomainError: If no identifier is given, the user is not found, or the
-                     user has already completed the invitation.
-        EmailSendError: If the email could not be sent.
-    """
+    """Generate a fresh token and re-send an invitation email."""
     if user_id is not None:
         user = get_user_by_id(db, user_id)
     elif email is not None:
@@ -111,7 +105,6 @@ def resend_invitation(
             "no invitation to resend"
         )
 
-    # Bump the token version so any previously emailed link stops working.
     previous_version = user.invitation_token_version
     user.invitation_token_version = previous_version + 1
     db.commit()
@@ -130,23 +123,25 @@ def resend_invitation(
             inviter_name=inviter_name,
         )
     except EmailSendError:
-        # Restore the old version so the previous link keeps working if the
-        # new email could not be delivered.
         user.invitation_token_version = previous_version
         db.commit()
         raise
 
+    log_action(
+        db,
+        action=AuditAction.INVITATION_RESENT,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"Invitation re-sent to '{user.email}'.",
+    )
     logger.info("Invitation re-sent to %s", user.email)
     return user
 
 
 def accept_invitation(db: Session, *, token: str, password: str) -> User:
-    """Validate an invitation token and set the user's password.
-
-    Raises:
-        InvalidTokenError: If the token is missing, malformed, expired,
-                           or does not match a pending user.
-    """
+    """Validate an invitation token and set the user's password."""
     try:
         payload = decode_invitation_token(token)
         token_type: str | None = payload.get("type")
@@ -160,7 +155,6 @@ def accept_invitation(db: Session, *, token: str, password: str) -> User:
     if user is None:
         raise InvalidTokenError("Invalid invitation token")
 
-    # A newer invitation has been sent, so this link is stale.
     if payload.get("ver", 0) != user.invitation_token_version:
         raise InvalidTokenError(
             "This invitation link is no longer valid. Ask for a new invitation."
@@ -169,7 +163,6 @@ def accept_invitation(db: Session, *, token: str, password: str) -> User:
     if not user.is_pending:
         raise InvalidTokenError("This invitation has already been used")
 
-    # Set password and activate the user
     user.hashed_password = hash_password(password)
     user.is_pending = False
     user.is_email_pending = False
@@ -186,6 +179,15 @@ def accept_invitation(db: Session, *, token: str, password: str) -> User:
         exclude_user_id=user.id,
     )
     ensure_welcome_notification(db, user)
+    log_action(
+        db,
+        action=AuditAction.INVITATION_ACCEPTED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="user",
+        resource_id=str(user.id),
+        detail=f"'{user.email}' accepted their invitation and set up their account.",
+    )
 
     logger.info("User %s completed invitation setup", user.email)
     return user

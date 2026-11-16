@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
 from nabora_crm.core.permissions import POSTS_REVIEW
+from nabora_crm.modules.audit.models import AuditAction
+from nabora_crm.modules.audit.service import log_action
 from nabora_crm.modules.notifications.models import NotificationType
 from nabora_crm.modules.notifications.service import (
     notify_permission,
@@ -72,6 +74,15 @@ def create_post(db: Session, *, user: User, payload: PostCreate) -> Post:
         db,
         author_id=user.id,
         **_dump_post_data(payload),
+    )
+    log_action(
+        db,
+        action=AuditAction.POST_CREATED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Post '{_post_label(post)}' created with status '{post.status.value}'.",
     )
     if post.status == PostStatus.pending_review:
         _notify_reviewers_of_submission(db, post=post, actor=user)
@@ -147,6 +158,15 @@ def update_post(
 
     is_author = post.author_id == user.id
     post = update_post_record(db, post, **_dump_post_data(payload))
+    log_action(
+        db,
+        action=AuditAction.POST_UPDATED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Post '{_post_label(post)}' updated by '{_user_label(user)}'.",
+    )
     if not is_author:
         notify_user(
             db,
@@ -171,9 +191,19 @@ def delete_post(db: Session, *, user: User, post_id: uuid.UUID) -> None:
 
     author_id = post.author_id
     label = _post_label(post)
+    post_id_str = str(post.id)
     is_author = author_id == user.id
     delete_post_record(db, post)
 
+    log_action(
+        db,
+        action=AuditAction.POST_DELETED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=post_id_str,
+        detail=f"Post '{label}' deleted by '{_user_label(user)}'.",
+    )
     if not is_author:
         notify_user(
             db,
@@ -206,6 +236,15 @@ def submit_for_review(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
         post.review_note = None
 
     post = set_post_status(db, post, PostStatus.pending_review)
+    log_action(
+        db,
+        action=AuditAction.POST_SUBMITTED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Post '{_post_label(post)}' submitted for review by '{_user_label(user)}'.",
+    )
     _notify_reviewers_of_submission(db, post=post, actor=user)
     return post
 
@@ -226,7 +265,15 @@ def request_changes(
         raise DomainError("Changes can only be requested on posts pending review")
 
     post = set_post_changes_requested(db, post, note)
-
+    log_action(
+        db,
+        action=AuditAction.POST_CHANGES_REQUESTED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Changes requested on '{_post_label(post)}' by '{_user_label(user)}': {note}",
+    )
     if post.author_id != user.id:
         notify_user(
             db,
@@ -251,6 +298,15 @@ def publish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
         raise DomainError("Only posts pending review can be published")
 
     post = set_post_status(db, post, PostStatus.published)
+    log_action(
+        db,
+        action=AuditAction.POST_PUBLISHED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Post '{_post_label(post)}' published by '{_user_label(user)}'.",
+    )
     if post.author_id != user.id:
         notify_user(
             db,
@@ -273,6 +329,15 @@ def unpublish_post(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
         raise DomainError("Only published posts can be unpublished")
 
     post = set_post_status(db, post, PostStatus.unpublished)
+    log_action(
+        db,
+        action=AuditAction.POST_UNPUBLISHED,
+        actor_id=user.id,
+        actor_email=user.email,
+        resource_type="post",
+        resource_id=str(post.id),
+        detail=f"Post '{_post_label(post)}' unpublished by '{_user_label(user)}'.",
+    )
     if post.author_id != user.id:
         notify_user(
             db,

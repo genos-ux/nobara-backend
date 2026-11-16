@@ -3,6 +3,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from nabora_crm.db.session import get_db
+from nabora_crm.modules.audit.models import AuditAction
+from nabora_crm.modules.audit.service import log_action
 from nabora_crm.modules.auth.dependencies import get_current_user, oauth2_scheme
 from nabora_crm.modules.auth.schemas import (
     ChangePasswordRequest,
@@ -33,12 +35,20 @@ def login(
 
 @router.post("/logout")
 def logout(
-    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     """Logout the current user. Client should discard both tokens."""
-    return {
-        "message": "Successfully logged out",
-    }
+    log_action(
+        db,
+        action=AuditAction.LOGOUT,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        resource_type="user",
+        resource_id=str(current_user.id),
+        detail=f"User '{current_user.email}' logged out.",
+    )
+    return {"message": "Successfully logged out"}
 
 
 @router.post("/refresh")

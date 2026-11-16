@@ -29,6 +29,7 @@ from nabora_crm.db.session import engine
 from nabora_crm.main import app
 
 # Ensure all models are registered with Base.metadata
+import nabora_crm.modules.audit.models  # noqa: F401
 import nabora_crm.modules.users.models  # noqa: F401
 import nabora_crm.modules.crm.models  # noqa: F401
 import nabora_crm.modules.notifications.models  # noqa: F401

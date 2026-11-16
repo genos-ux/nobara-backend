@@ -107,6 +107,7 @@ def update_user(
         full_name=payload.full_name,
         email=str(payload.email) if payload.email is not None else None,
         role_id=payload.role_id,
+        actor=_user,
     )
     return UserOut(
         id=user.id,
@@ -126,7 +127,7 @@ def deactivate_user(
 ) -> UserOut:
     """Deactivate a user account. The user can no longer authenticate."""
     user = get_user_or_404(db, user_id)
-    user = set_user_active(db, user, is_active=False)
+    user = set_user_active(db, user, is_active=False, actor=_user)
     return UserOut(
         id=user.id,
         full_name=user.full_name,
@@ -145,7 +146,7 @@ def activate_user(
 ) -> UserOut:
     """Reactivate a previously deactivated user account."""
     user = get_user_or_404(db, user_id)
-    user = set_user_active(db, user, is_active=True)
+    user = set_user_active(db, user, is_active=True, actor=_user)
     return UserOut(
         id=user.id,
         full_name=user.full_name,

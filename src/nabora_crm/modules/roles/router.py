@@ -57,6 +57,7 @@ def post_role(
         name=body.name,
         description=body.description,
         permission_names=body.permission_names,
+        actor=_user,
     )
     return RoleOut(
         id=role.id,
@@ -84,6 +85,7 @@ def put_role(
         name=body.name,
         description=body.description,
         permission_names=body.permission_names,
+        actor=_user,
     )
     return RoleOut(
         id=role.id,
@@ -104,7 +106,7 @@ def delete_role_endpoint(
 ) -> None:
     """Delete a non-system role."""
     role = get_role_or_404(db, role_id)
-    remove_role(db, role)
+    remove_role(db, role, actor=_user)
 
 
 @router.get("/permissions", response_model=list[PermissionOut])
