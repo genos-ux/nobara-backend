@@ -78,7 +78,7 @@ def send_invitation_email(
             "Brevo API key is not configured. Set BREVO_API_KEY in your environment."
         )
 
-    invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/setup-password?token={invite_token}"
+    invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/accept-invite?token={invite_token}"
 
     from_email = settings.EMAIL_FROM or "noreply@nabora.app"
 
