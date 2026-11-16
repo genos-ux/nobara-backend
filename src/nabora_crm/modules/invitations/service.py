@@ -63,6 +63,7 @@ def invite_user(
     send_invitation_email(
         to_email=user.email,
         invite_token=token,
+        to_name=user.full_name,
         inviter_name=inviter_name,
     )
 
@@ -120,6 +121,7 @@ def resend_invitation(
         send_invitation_email(
             to_email=user.email,
             invite_token=token,
+            to_name=user.full_name,
             inviter_name=inviter_name,
         )
     except EmailSendError:

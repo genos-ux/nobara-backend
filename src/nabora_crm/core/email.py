@@ -6,13 +6,27 @@ on any SMTP failure so the caller can decide whether to surface it.
 """
 import logging
 import smtplib
+from email.headerregistry import Address
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 
 from nabora_crm.core.config import settings
 from nabora_crm.core.exceptions import EmailSendError
 
 logger = logging.getLogger("nabora_crm")
+
+
+def _format_address(display_name: str | None, email: str) -> str:
+    """Return a properly formatted RFC 2822 address string.
+
+    Examples:
+        "Jane Doe" <jane@example.com>
+        jane@example.com          (when display_name is None or empty)
+    """
+    if display_name and display_name.strip():
+        return formataddr((display_name.strip(), email))
+    return email
 
 
 def _build_invitation_html(invite_link: str, inviter_name: str | None = None) -> str:
@@ -60,9 +74,19 @@ def send_invitation_email(
     *,
     to_email: str,
     invite_token: str,
+    to_name: str | None = None,
     inviter_name: str | None = None,
 ) -> None:
     """Send an invitation email to `to_email` with a password-setup link.
+
+    Args:
+        to_email:     Recipient email address.
+        invite_token: Short-lived JWT to embed in the setup link.
+        to_name:      Recipient display name shown in the email client
+                      (e.g. "Jane Doe"). Falls back to the email address
+                      when not provided.
+        inviter_name: Name of the person who sent the invitation, shown in
+                      the email body.
 
     The link points to ``{FRONTEND_URL}/setup-password?token=<token>``.
 
@@ -77,10 +101,13 @@ def send_invitation_email(
 
     invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/setup-password?token={invite_token}"
 
+    from_address = _format_address("Nabora CRM", settings.EMAIL_FROM or settings.SMTP_USERNAME)
+    to_address = _format_address(to_name, to_email)
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "You're invited to Nabora CRM — set up your account"
-    msg["From"] = settings.EMAIL_FROM or settings.SMTP_USERNAME
-    msg["To"] = to_email
+    msg["From"] = from_address
+    msg["To"] = to_address
 
     msg.attach(MIMEText(_build_invitation_text(invite_link, inviter_name), "plain"))
     msg.attach(MIMEText(_build_invitation_html(invite_link, inviter_name), "html"))
