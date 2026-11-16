@@ -19,6 +19,7 @@ from nabora_crm.modules.posts.schemas import (
     PostOut,
     PostStatusCounts,
     PostUpdate,
+    RequestChangesRequest,
 )
 from nabora_crm.modules.posts.service import (
     can_review,
@@ -28,6 +29,7 @@ from nabora_crm.modules.posts.service import (
     get_post_status_counts,
     list_posts,
     publish_post,
+    request_changes,
     submit_for_review,
     unpublish_post,
     update_post,
@@ -104,6 +106,7 @@ def get_post_stats_endpoint(
     return PostStatusCounts(
         draft=counts.get(PostStatus.draft, 0),
         pending_review=counts.get(PostStatus.pending_review, 0),
+        changes_requested=counts.get(PostStatus.changes_requested, 0),
         published=counts.get(PostStatus.published, 0),
         unpublished=counts.get(PostStatus.unpublished, 0),
         total=sum(counts.values()),
@@ -151,6 +154,23 @@ def submit_post_endpoint(
 ) -> PostOut:
     """Submit a draft post for admin review."""
     post = submit_for_review(db, user=user, post_id=post_id)
+    return PostOut.model_validate(post)
+
+
+@router.post("/{post_id}/request-changes", response_model=PostOut)
+def request_changes_endpoint(
+    post_id: uuid.UUID,
+    payload: RequestChangesRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(POSTS_REVIEW)),
+) -> PostOut:
+    """Request changes on a post pending review (admin/reviewer only)."""
+    post = request_changes(
+        db,
+        user=user,
+        post_id=post_id,
+        note=payload.note,
+    )
     return PostOut.model_validate(post)
 
 

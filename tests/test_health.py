@@ -123,6 +123,7 @@ class TestDatabase:
         assert "permissions" in table_names
         assert "role_permissions" in table_names
         assert "posts" in table_names
+        assert "notifications" in table_names
 
 
 class TestDomainExceptions:

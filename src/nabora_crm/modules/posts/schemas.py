@@ -68,6 +68,7 @@ class PostOut(BaseModel):
     evidence_explanation: str | None
     practical_guidance: str
     sources_references: str | None
+    review_note: str | None
     section: PostSection
     topic: PostTopic
     image_url: str | None
@@ -102,6 +103,11 @@ class PaginatedPosts(BaseModel):
 class PostStatusCounts(BaseModel):
     draft: int
     pending_review: int
+    changes_requested: int
     published: int
     unpublished: int
     total: int
+
+
+class RequestChangesRequest(BaseModel):
+    note: str = Field(min_length=1, max_length=2000)

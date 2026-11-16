@@ -4,6 +4,8 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
+from nabora_crm.modules.notifications.models import NotificationType
+from nabora_crm.modules.notifications.service import notify_user
 from nabora_crm.modules.posts.models import Post
 from nabora_crm.modules.roles.repository import get_role_by_id
 from nabora_crm.modules.users.models import User
@@ -26,9 +28,28 @@ def get_user_or_404(db: Session, user_id: uuid.UUID) -> User:
 
 def set_user_active(db: Session, user: User, is_active: bool) -> User:
     """Activate or deactivate a user and commit."""
+    was_active = user.is_active
     user.is_active = is_active
     db.commit()
     db.refresh(user)
+
+    if was_active != is_active:
+        if is_active:
+            notify_user(
+                db,
+                user.id,
+                notification_type=NotificationType.USER_ACTIVATED,
+                title="Account reactivated",
+                message="Your account has been reactivated.",
+            )
+        else:
+            notify_user(
+                db,
+                user.id,
+                notification_type=NotificationType.USER_DEACTIVATED,
+                title="Account deactivated",
+                message="Your account has been deactivated.",
+            )
     return user
 
 
@@ -46,6 +67,10 @@ def update_user_details(
         DomainError: If the new email is already used by another user, or the
                      role does not exist.
     """
+    previous_role_id = user.role_id
+    previous_full_name = user.full_name
+    previous_email = user.email
+
     if email is not None and email != user.email:
         existing = get_user_by_email(db, email)
         if existing is not None and existing.id != user.id:
@@ -65,6 +90,28 @@ def update_user_details(
 
     db.commit()
     db.refresh(user)
+
+    if user.role_id != previous_role_id:
+        notify_user(
+            db,
+            user.id,
+            notification_type=NotificationType.ROLE_CHANGED,
+            title="Role changed",
+            message=f"Your role was changed to '{user.role.name}'.",
+        )
+
+    if (
+        user.full_name != previous_full_name
+        or user.email != previous_email
+    ):
+        notify_user(
+            db,
+            user.id,
+            notification_type=NotificationType.USER_UPDATED,
+            title="Account updated",
+            message="Your account details were updated by an administrator.",
+        )
+
     return user
 
 

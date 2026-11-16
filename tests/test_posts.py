@@ -174,6 +174,7 @@ def test_post_status_counts(client, contributor_headers):
     assert set(before_body) == {
         "draft",
         "pending_review",
+        "changes_requested",
         "published",
         "unpublished",
         "total",

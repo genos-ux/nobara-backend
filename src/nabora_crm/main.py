@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -25,6 +26,7 @@ from nabora_crm.core.exceptions import (
 from nabora_crm.core.logging import setup_logging
 from nabora_crm.db.init_db import init_db
 from nabora_crm.db.session import engine
+from nabora_crm.modules.notifications.broker import notification_broker
 
 setup_logging()
 logger = logging.getLogger("nabora_crm")
@@ -43,6 +45,8 @@ async def lifespan(app: FastAPI):
 
     # Create tables and seed admin account
     init_db()
+
+    notification_broker.bind_loop(asyncio.get_running_loop())
 
     yield
 

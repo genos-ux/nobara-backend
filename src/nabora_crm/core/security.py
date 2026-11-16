@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -63,4 +64,23 @@ def create_invitation_token(data: dict[str, Any]) -> str:
 
 def decode_invitation_token(token: str) -> dict[str, Any]:
     """Decode and verify a JWT invitation token. Raises JWTError on failure."""
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+
+def create_stream_ticket(user_id: uuid.UUID, email: str) -> str:
+    """Create a short-lived ticket for authenticating an SSE connection."""
+    expire = datetime.now(timezone.utc) + timedelta(
+        seconds=settings.SSE_TICKET_EXPIRE_SECONDS,
+    )
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "exp": expire,
+        "type": "sse",
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_stream_ticket(token: str) -> dict[str, Any]:
+    """Decode and verify an SSE ticket. Raises JWTError on failure."""
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

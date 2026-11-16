@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from nabora_crm.core.email import send_invitation_email
 from nabora_crm.core.exceptions import DomainError, EmailSendError, InvalidTokenError
+from nabora_crm.core.permissions import INVITATIONS_WRITE
 from nabora_crm.core.security import (
     create_invitation_token,
     decode_invitation_token,
@@ -15,6 +16,11 @@ from nabora_crm.modules.invitations.repository import (
     create_pending_user,
     get_user_by_email,
     get_user_by_id,
+)
+from nabora_crm.modules.notifications.models import NotificationType
+from nabora_crm.modules.notifications.service import (
+    ensure_welcome_notification,
+    notify_permission,
 )
 from nabora_crm.modules.roles.repository import get_role_by_id
 from nabora_crm.modules.users.models import User
@@ -169,6 +175,17 @@ def accept_invitation(db: Session, *, token: str, password: str) -> User:
     user.is_email_pending = False
     db.commit()
     db.refresh(user)
+
+    name = user.full_name or user.email
+    notify_permission(
+        db,
+        INVITATIONS_WRITE,
+        notification_type=NotificationType.INVITATION_ACCEPTED,
+        title="New user joined",
+        message=f"{name} accepted their invitation and joined the system.",
+        exclude_user_id=user.id,
+    )
+    ensure_welcome_notification(db, user)
 
     logger.info("User %s completed invitation setup", user.email)
     return user

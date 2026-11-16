@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from nabora_crm.core.exceptions import DomainError
+from nabora_crm.modules.notifications.service import notify_role_members
 from nabora_crm.modules.roles.models import Role
 from nabora_crm.modules.roles.repository import (
     create_role,
@@ -80,13 +81,25 @@ def update_role_with_permissions(
     if permission_names is not None:
         permissions = get_permissions_by_names(db, permission_names)
 
-    return update_role(
+    previous_name = role.name
+    previous_permissions = {permission.name for permission in role.permissions}
+
+    role = update_role(
         db,
         role,
         name=name,
         description=description,
         permissions=permissions,
     )
+
+    permissions_changed = (
+        permission_names is not None
+        and set(permission_names) != previous_permissions
+    )
+    if role.name != previous_name or permissions_changed:
+        notify_role_members(db, role.id, role.name)
+
+    return role
 
 
 def remove_role(db: Session, role: Role) -> None:

@@ -16,6 +16,7 @@ class PostSection(enum.Enum):
 class PostStatus(enum.Enum):
     draft = "draft"
     pending_review = "pending_review"
+    changes_requested = "changes_requested"
     published = "published"
     unpublished = "unpublished"
 
@@ -38,6 +39,7 @@ class Post(Base):
     evidence_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     practical_guidance: Mapped[str] = mapped_column(Text, nullable=False)
     sources_references: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     section: Mapped[PostSection] = mapped_column(
         Enum(PostSection, name="post_section"), nullable=False, index=True,

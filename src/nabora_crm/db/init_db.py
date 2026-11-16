@@ -5,6 +5,7 @@ from nabora_crm.core.permissions import ALL_PERMISSIONS, ADMIN_ACCESS
 from nabora_crm.core.security import hash_password
 from nabora_crm.db.base import Base
 from nabora_crm.db.session import SessionLocal, engine
+from nabora_crm.modules.notifications.models import Notification  # noqa: F401
 from nabora_crm.modules.posts.models import Post  # noqa: F401
 from nabora_crm.modules.roles.models import Permission, Role
 from nabora_crm.modules.users.models import User

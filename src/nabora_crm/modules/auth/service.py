@@ -14,6 +14,11 @@ from nabora_crm.core.security import (
     hash_password,
     verify_password,
 )
+from nabora_crm.modules.notifications.models import NotificationType
+from nabora_crm.modules.notifications.service import (
+    ensure_welcome_notification,
+    notify_user,
+)
 from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import get_user_by_email
 
@@ -29,6 +34,7 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
         raise AuthenticationError("Incorrect email or password")
     if not user.is_active:
         raise InactiveUserError("Inactive user account")
+    ensure_welcome_notification(db, user)
     return user
 
 
@@ -54,6 +60,13 @@ def change_password(
     user.hashed_password = hash_password(new_password)
     db.commit()
     db.refresh(user)
+    notify_user(
+        db,
+        user.id,
+        notification_type=NotificationType.PASSWORD_CHANGED,
+        title="Password changed",
+        message="Your password was changed successfully.",
+    )
     return user
 
 

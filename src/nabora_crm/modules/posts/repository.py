@@ -134,6 +134,15 @@ def set_post_status(db: Session, post: Post, status: PostStatus) -> Post:
     return post
 
 
+def set_post_changes_requested(db: Session, post: Post, note: str) -> Post:
+    """Mark a post as needing changes and store the reviewer's note."""
+    post.status = PostStatus.changes_requested
+    post.review_note = note
+    db.commit()
+    db.refresh(post)
+    return post
+
+
 def delete_post(db: Session, post: Post) -> None:
     """Delete a post and commit."""
     db.delete(post)
