@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Invitation token expiry (days)
     INVITATION_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Password reset token expiry (minutes)
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+
     # SSE notifications
     SSE_TICKET_EXPIRE_SECONDS: int = 60
     SSE_HEARTBEAT_SECONDS: int = 20

@@ -6,7 +6,7 @@ This folder contains feature-by-feature integration guides for frontend develope
 
 | Guide | Description |
 |-------|-------------|
-| [Authentication](./authentication.md) | Login, logout, token refresh, password change, user profile |
+| [Authentication](./authentication.md) | Login, logout, token refresh, password change/reset, user profile |
 | [Users & Invitations](./users-and-invitations.md) | User management, inviting new users, accepting invitations |
 | [Roles & Permissions](./roles-and-permissions.md) | RBAC — listing, creating, updating, and deleting roles |
 | [Posts](./posts.md) | Post lifecycle: drafts, review workflow, publish/unpublish |
@@ -21,7 +21,7 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
-Unauthenticated endpoints (login, invitation accept) need no `Authorization` header.
+Unauthenticated endpoints (login, invitation accept, forgot/reset password) need no `Authorization` header.
 
 ## Error Codes
 

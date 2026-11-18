@@ -33,6 +33,12 @@ class User(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
+    # Incremented when a password reset is requested and again after it is used,
+    # so older reset links stop working.
+    password_reset_token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
     role: Mapped["Role"] = relationship(lazy="selectin")  # noqa: F821
 
     @property

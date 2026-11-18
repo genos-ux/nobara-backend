@@ -18,6 +18,8 @@ class AuditAction:
     LOGOUT = "auth.logout"
     TOKEN_REFRESHED = "auth.token_refreshed"
     PASSWORD_CHANGED = "auth.password_changed"
+    PASSWORD_RESET_REQUESTED = "auth.password_reset_requested"
+    PASSWORD_RESET = "auth.password_reset"
 
     # Users
     USER_CREATED = "user.created"

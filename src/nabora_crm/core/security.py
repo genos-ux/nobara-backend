@@ -67,6 +67,21 @@ def decode_invitation_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
 
+def create_password_reset_token(data: dict[str, Any]) -> str:
+    """Create a short-lived JWT password reset token."""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    )
+    to_encode.update({"exp": expire, "type": "password_reset"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> dict[str, Any]:
+    """Decode and verify a JWT password reset token. Raises JWTError on failure."""
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+
 def create_stream_ticket(user_id: uuid.UUID, email: str) -> str:
     """Create a short-lived ticket for authenticating an SSE connection."""
     expire = datetime.now(timezone.utc) + timedelta(

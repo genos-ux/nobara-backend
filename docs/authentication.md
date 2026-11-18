@@ -106,6 +106,71 @@ Validation rules:
 
 ---
 
+## Forgot Password
+
+```
+POST /v1/auth/forgot-password
+```
+
+No authentication required.
+
+**Request body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (always the same, whether or not the account exists):**
+```json
+{
+  "message": "If an account with that email exists, a password reset link has been sent."
+}
+```
+
+If the email belongs to an active account, a reset link is emailed to that address. The link points to:
+
+```
+{FRONTEND_URL}/dashboard/reset-password?token=<jwt>
+```
+
+The token expires after `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (default 30 minutes). Requesting another reset invalidates the previous link. Pending invited users who have not set a password are ignored — they should use their invitation link.
+
+**Side effect:** Creates an `auth.password_reset_requested` audit log entry.
+
+---
+
+## Reset Password
+
+```
+POST /v1/auth/reset-password
+```
+
+No authentication required — the reset token proves ownership of the email address.
+
+**Request body:**
+```json
+{
+  "token": "<token from the reset email>",
+  "new_password": "newPassword123"
+}
+```
+
+Validation rules:
+- `new_password` must be at least 8 characters.
+- `new_password` must differ from the current password.
+
+**Response:**
+```json
+{ "message": "Password reset successfully" }
+```
+
+The token is single-use. A successful reset invalidates the link and creates a `password_changed` notification for the user. Log in again with the new password afterwards.
+
+**Errors:** an invalid, expired, or already-used token returns `401`.
+
+---
+
 ## Logout
 
 ```

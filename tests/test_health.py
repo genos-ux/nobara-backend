@@ -74,6 +74,8 @@ class TestOpenAPI:
         assert "/v1/auth/refresh" in paths
         assert "/v1/auth/me" in paths
         assert "/v1/auth/change-password" in paths
+        assert "/v1/auth/forgot-password" in paths
+        assert "/v1/auth/reset-password" in paths
 
     def test_roles_routes_in_schema(self, client):
         """All roles endpoints are registered in the OpenAPI schema under /v1."""
