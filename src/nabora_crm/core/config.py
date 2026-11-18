@@ -62,6 +62,17 @@ class Settings(BaseSettings):
     SSE_TICKET_EXPIRE_SECONDS: int = 60
     SSE_HEARTBEAT_SECONDS: int = 20
 
+    @property
+    def allowed_cors_origins(self) -> list[str]:
+        """Browser origins allowed by CORS.
+
+        ``FRONTEND_URL`` is always included so the deployed frontend works even
+        when ``CORS_ORIGINS`` was not updated. Entries are normalised by
+        trimming whitespace and a trailing slash.
+        """
+        origins = [*self.CORS_ORIGINS.split(","), self.FRONTEND_URL]
+        return sorted({origin.strip().rstrip("/") for origin in origins if origin.strip()})
+
 
 try:
     settings = Settings()  # type: ignore[call-arg]

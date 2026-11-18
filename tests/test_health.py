@@ -28,6 +28,32 @@ class TestHealth:
         assert data["status"] == "ok"
 
 
+class TestCORS:
+    """Verify browser preflight requests are handled for the frontend."""
+
+    def test_frontend_origin_allowed(self, client):
+        response = client.options(
+            "/v1/invitations/accept",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+    def test_unknown_origin_not_allowed(self, client):
+        response = client.options(
+            "/v1/invitations/accept",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert "access-control-allow-origin" not in response.headers
+
+
 class TestOpenAPI:
     """Verify OpenAPI schema generation."""
 

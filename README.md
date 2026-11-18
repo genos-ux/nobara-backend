@@ -151,7 +151,10 @@ Copy `.env.example` to `.env` and fill in:
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL |
 | `ADMIN_EMAIL` | Initial admin account email |
 | `ADMIN_PASSWORD` | Initial admin account password |
-| `CORS_ORIGINS` | Comma-separated allowed origins |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins |
+| `FRONTEND_URL` | Frontend base URL (used in invitation links and always allowed by CORS) |
+
+> Browser requests from `FRONTEND_URL` are always allowed, so deploying the frontend to a new URL only requires updating `FRONTEND_URL`. Add any additional origins (for example, local development) to `CORS_ORIGINS`.
 
 ## Setup
 

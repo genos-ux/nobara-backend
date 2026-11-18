@@ -149,7 +149,7 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_origins=settings.allowed_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
