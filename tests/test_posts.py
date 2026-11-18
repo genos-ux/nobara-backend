@@ -400,6 +400,45 @@ def test_contributor_sees_only_own_posts_admin_sees_all(
     assert reviewer_item["author_name"] == "Contributor Person"
 
 
+def test_guest_can_list_and_get_published_posts(
+    client, contributor_headers, admin_headers
+):
+    draft = client.post(
+        "/v1/posts",
+        json=_payload(topic="Nutrition Basics"),
+        headers=contributor_headers,
+    ).json()
+    published = client.post(
+        "/v1/posts",
+        json=_payload(topic="Health & Wellness"),
+        headers=contributor_headers,
+    ).json()
+    client.post(f"/v1/posts/{published['id']}/submit", headers=contributor_headers)
+    client.post(f"/v1/posts/{published['id']}/publish", headers=admin_headers)
+
+    listing = client.get("/v1/posts?page_size=100")
+    assert listing.status_code == 200, listing.text
+    body = listing.json()
+    ids = {p["id"] for p in body["items"]}
+    assert published["id"] in ids
+    assert draft["id"] not in ids
+    assert all(p["status"] == "published" for p in body["items"])
+    assert body["total"] == len(body["items"])
+    assert all(p["author_name"] is None for p in body["items"])
+
+    # A guest cannot use the status filter to reveal unpublished posts.
+    drafts = client.get("/v1/posts?status=draft&page_size=100")
+    assert drafts.status_code == 200, drafts.text
+    assert all(p["status"] == "published" for p in drafts.json()["items"])
+
+    detail = client.get(f"/v1/posts/{published['id']}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["id"] == published["id"]
+
+    hidden = client.get(f"/v1/posts/{draft['id']}")
+    assert hidden.status_code == 400
+
+
 def _ensure_role(client, admin_headers, name, permission_names):
     """Create a custom role or return the existing one's ID."""
     created = client.post(

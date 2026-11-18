@@ -8,12 +8,12 @@ Covers creating posts, the review lifecycle, and admin publish/unpublish actions
 
 | Action | Permission |
 |--------|------------|
-| Read posts | `posts:read` |
+| Read posts | `posts:read` (public guests may read published posts) |
 | Create and edit posts | `posts:write` |
 | Delete posts | `posts:delete` |
 | Publish, unpublish, request changes | `posts:review` |
 
-**Visibility:** Contributors only see their own posts. Users with `posts:review` see all posts.
+**Visibility:** Contributors only see their own posts. Users with `posts:review` see all posts. Unauthenticated guests can list and fetch published posts without a token.
 
 ---
 
@@ -122,6 +122,8 @@ POST /v1/posts
 GET /v1/posts
 ```
 
+This endpoint is public. Without an `Authorization` header, only `published` posts are returned (the `status` filter is ignored for guests).
+
 **Query parameters:**
 
 | Param | Type | Description |
@@ -182,7 +184,7 @@ Counts reflect the same visibility rules as the list endpoint.
 GET /v1/posts/{post_id}
 ```
 
-Returns the full post object.
+Public: no token is required to fetch a `published` post. Returns the full post object.
 
 ---
 

@@ -19,6 +19,7 @@ from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import get_user_by_email, get_user_by_id
 
 oauth2_scheme = HTTPBearer()
+optional_oauth2_scheme = HTTPBearer(auto_error=False)
 
 
 def resolve_access_token(db: Session, token: str) -> User:
@@ -45,6 +46,20 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """Decode the JWT token and return the current authenticated user."""
+    return resolve_access_token(db, credentials.credentials)
+
+
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Return the current user when a valid token is supplied, else ``None``.
+
+    Used by endpoints that are publicly readable but can show more data to
+    authenticated users. A supplied-but-invalid token is still rejected.
+    """
+    if credentials is None:
+        return None
     return resolve_access_token(db, credentials.credentials)
 
 

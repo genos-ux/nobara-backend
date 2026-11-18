@@ -102,7 +102,7 @@ def create_post(db: Session, *, user: User, payload: PostCreate) -> Post:
 def list_posts(
     db: Session,
     *,
-    user: User,
+    user: User | None,
     section: PostSection | None = None,
     topic: PostTopic | None = None,
     status: PostStatus | None = None,
@@ -111,12 +111,18 @@ def list_posts(
 ) -> tuple[list[Post], int]:
     """List posts visible to the current user, with pagination metadata.
 
-    Users whose role grants ``posts:review`` see every post (the admin
-    overview of contributor work); everyone else sees only their own posts.
-    Visibility is permission-based, not role-name-based. Returns
-    ``(posts, total)``.
+    Guests (no authenticated user) only see published posts. Users whose
+    role grants ``posts:review`` see every post (the admin overview of
+    contributor work); everyone else sees only their own posts. Visibility
+    is permission-based, not role-name-based. Returns ``(posts, total)``.
     """
-    author_id = None if can_review(db, user) else user.id
+    if user is None:
+        author_id = None
+        status = PostStatus.published
+    elif can_review(db, user):
+        author_id = None
+    else:
+        author_id = user.id
 
     posts = list_post_records(
         db,
@@ -137,13 +143,16 @@ def list_posts(
     return posts, total
 
 
-def get_post_or_404(db: Session, *, user: User, post_id: uuid.UUID) -> Post:
-    """Fetch a post the user is allowed to see, or raise DomainError."""
+def get_post_or_404(db: Session, *, user: User | None, post_id: uuid.UUID) -> Post:
+    """Fetch a post the user is allowed to see, or raise DomainError.
+
+    Guests may only fetch published posts.
+    """
     post = get_post_by_id(db, post_id)
     if post is None:
         raise DomainError(f"Post with id {post_id} not found")
 
-    if can_review(db, user) or post.author_id == user.id:
+    if user is not None and (can_review(db, user) or post.author_id == user.id):
         return post
     if post.status == PostStatus.published:
         return post

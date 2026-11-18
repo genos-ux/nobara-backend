@@ -10,7 +10,10 @@ from nabora_crm.core.permissions import (
     POSTS_WRITE,
 )
 from nabora_crm.db.session import get_db
-from nabora_crm.modules.auth.dependencies import require_permission
+from nabora_crm.modules.auth.dependencies import (
+    get_optional_current_user,
+    require_permission,
+)
 from nabora_crm.modules.posts.models import PostSection, PostStatus, PostTopic
 from nabora_crm.modules.posts.schemas import (
     PaginatedPosts,
@@ -58,9 +61,9 @@ def list_posts_endpoint(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission(POSTS_READ)),
+    user: User | None = Depends(get_optional_current_user),
 ) -> PaginatedPosts:
-    """List posts visible to the current user, with optional filters."""
+    """List posts. Public guests see published posts; auth users see their own."""
     posts, total = list_posts(
         db,
         user=user,
@@ -72,7 +75,7 @@ def list_posts_endpoint(
     )
     # Only reviewers (e.g. admins) get the author's name; other users only
     # see their own posts and do not need it.
-    show_author_name = can_review(db, user)
+    show_author_name = user is not None and can_review(db, user)
     items = [
         PostListItem(
             **PostOut.model_validate(post).model_dump(),
@@ -117,9 +120,9 @@ def get_post_stats_endpoint(
 def get_post_endpoint(
     post_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission(POSTS_READ)),
+    user: User | None = Depends(get_optional_current_user),
 ) -> PostOut:
-    """Get a single post."""
+    """Get a single post. Guests can only fetch published posts."""
     post = get_post_or_404(db, user=user, post_id=post_id)
     return PostOut.model_validate(post)
 
