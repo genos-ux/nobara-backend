@@ -189,7 +189,7 @@ def send_password_reset_email(
     Raises:
         EmailSendError: If BREVO_API_KEY is not set or the request fails.
     """
-    reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/reset-password?token={reset_token}"
+    reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/forgot-password?token={reset_token}"
     _send_email(
         to_email=to_email,
         to_name=to_name,

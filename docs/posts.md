@@ -56,6 +56,10 @@ Covers creating posts, the review lifecycle, and admin publish/unpublish actions
 - `Supplement Education`
 - `Ingredients Explained`
 - `Public Health Topics`
+- `Training`
+- `Performance`
+- `Recovery`
+- `Fitness Education`
 
 ---
 

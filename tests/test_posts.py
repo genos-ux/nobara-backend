@@ -78,6 +78,21 @@ def test_contributor_can_create_draft(client, contributor_headers):
     assert body["author_email"] == "contributor@test.example"
 
 
+@pytest.mark.parametrize(
+    "topic",
+    ["Training", "Performance", "Recovery", "Fitness Education"],
+)
+def test_fitness_topics_are_accepted(client, contributor_headers, topic):
+    resp = client.post(
+        "/v1/posts",
+        json=_payload(section="fitness", topic=topic),
+        headers=contributor_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["section"] == "fitness"
+    assert resp.json()["topic"] == topic
+
+
 def test_create_requires_practical_guidance_and_topic(client, contributor_headers):
     resp = client.post(
         "/v1/posts",

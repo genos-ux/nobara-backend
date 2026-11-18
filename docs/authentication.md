@@ -131,7 +131,7 @@ No authentication required.
 If the email belongs to an active account, a reset link is emailed to that address. The link points to:
 
 ```
-{FRONTEND_URL}/dashboard/reset-password?token=<jwt>
+{FRONTEND_URL}/dashboard/forgot-password?token=<jwt>
 ```
 
 The token expires after `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (default 30 minutes). Requesting another reset invalidates the previous link. Pending invited users who have not set a password are ignored — they should use their invitation link.

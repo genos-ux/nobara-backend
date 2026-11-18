@@ -1,5 +1,6 @@
 """Tests for the forgot/reset password flow."""
 
+import json
 import uuid
 from unittest.mock import patch
 
@@ -150,6 +151,37 @@ def test_reset_password_rejects_same_password(mock_send, client):
     )
     assert response.status_code == 400
     assert "different" in response.json()["detail"]
+
+
+def test_reset_email_links_to_frontend_forgot_password(monkeypatch):
+    from nabora_crm.core import email as email_module
+
+    payloads: dict[str, dict] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b""
+
+    def fake_urlopen(req, timeout):
+        payloads["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(email_module.settings, "BREVO_API_KEY", "test-key")
+    monkeypatch.setattr(email_module.urllib.request, "urlopen", fake_urlopen)
+
+    email_module.send_password_reset_email(
+        to_email="user@test.example",
+        reset_token="token123",
+    )
+
+    text = payloads["body"]["textContent"]
+    assert "/dashboard/forgot-password?token=token123" in text
 
 
 def test_reset_password_rejects_invalid_token(client):

@@ -27,6 +27,10 @@ class PostTopic(enum.Enum):
     supplement_education = "Supplement Education"
     ingredients_explained = "Ingredients Explained"
     public_health_topics = "Public Health Topics"
+    training = "Training"
+    performance = "Performance"
+    recovery = "Recovery"
+    fitness_education = "Fitness Education"
 
 
 class Post(Base):
