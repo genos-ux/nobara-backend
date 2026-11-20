@@ -124,6 +124,15 @@ All parameters are optional and can be combined freely.
 | `post.unpublished` | Admin/reviewer unpublishes a post |
 | `post.changes_requested` | Admin/reviewer requests changes on a post |
 
+### Contact Form
+
+| Action | Triggered by |
+|--------|-------------|
+| `contact.received` | A visitor submits the public contact form |
+
+Contact submissions have no `actor_id`; the visitor's email is stored in
+`actor_email` and the created CRM person is the `resource_id`.
+
 ---
 
 ## Example Queries

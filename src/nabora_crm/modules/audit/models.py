@@ -46,6 +46,9 @@ class AuditAction:
     POST_UNPUBLISHED = "post.unpublished"
     POST_CHANGES_REQUESTED = "post.changes_requested"
 
+    # Contact form
+    CONTACT_RECEIVED = "contact.received"
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

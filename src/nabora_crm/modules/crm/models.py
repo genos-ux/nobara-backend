@@ -46,6 +46,7 @@ class Activity(Base):
     )
     staff_name: Mapped[str | None] = mapped_column(String, nullable=True)
     activity_type: Mapped[str] = mapped_column(String, nullable=False)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(),

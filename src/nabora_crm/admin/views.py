@@ -93,7 +93,14 @@ class PersonAdmin(ModelView, model=Person):
 
 class ActivityAdmin(ModelView, model=Activity):
     category = "CRM"
-    column_list = [Activity.id, Activity.person_id, Activity.staff_name, Activity.activity_type, Activity.created_at]
+    column_list = [
+        Activity.id,
+        Activity.person_id,
+        Activity.staff_name,
+        Activity.activity_type,
+        Activity.subject,
+        Activity.created_at,
+    ]
 
 
 def create_admin(app, templates_dir: str) -> Admin:

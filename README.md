@@ -116,6 +116,8 @@ No circular dependencies exist. Each layer depends only on layers below it.
 | PUT | `/v1/roles/{id}` | `roles:write` | Update a role (name, description, permissions) |
 | DELETE | `/v1/roles/{id}` | `roles:delete` | Delete a non-system role |
 | GET | `/v1/roles/permissions` | `roles:read` | List all available permissions |
+| POST | `/v1/contact-messages` | None | Submit the public contact form |
+| GET | `/v1/contact-messages` | `crm:read` | List contact form submissions |
 | POST | `/v1/posts` | `posts:write` | Create a post |
 | GET | `/v1/posts` | `posts:read` | List visible posts |
 | GET | `/v1/posts/stats` | `posts:read` | Count posts by status |
