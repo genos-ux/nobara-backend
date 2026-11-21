@@ -3,10 +3,7 @@ import uuid
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from nabora_crm.core.encryption import (
-    DeterministicEncryptedString,
-    EncryptedString,
-)
+from nabora_crm.core.encryption import DeterministicEncryptedString
 from nabora_crm.db.base import Base
 
 
@@ -14,7 +11,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    full_name: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str] = mapped_column(
         DeterministicEncryptedString, unique=True, nullable=False, index=True,
     )

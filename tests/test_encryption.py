@@ -84,8 +84,7 @@ def test_raw_database_stores_ciphertext(client):
         ).one()
         assert raw_person.email.startswith("siv:v1:")
         assert raw_person.email != email
-        assert raw_person.name.startswith("enc:v1:")
-        assert raw_person.name != name
+        assert raw_person.name == name
 
         rows = db.execute(
             text("SELECT subject, description FROM activities")
@@ -121,6 +120,65 @@ def test_raw_database_stores_ciphertext(client):
             assert row.title.startswith("enc:v1:")
             assert row.message.startswith("enc:v1:")
     finally:
+        db.close()
+
+
+def test_name_fields_are_stored_in_plaintext():
+    from nabora_crm.modules.crm.models import Activity, Person
+    from nabora_crm.modules.roles.models import Role
+    from nabora_crm.modules.users.models import User
+
+    email = "plain.names@test.example"
+    db = SessionLocal()
+    try:
+        role_id = db.query(Role.id).first()[0]
+        user = User(
+            email=email,
+            full_name="Plain User Name",
+            hashed_password="not-a-real-hash",
+            role_id=role_id,
+            is_active=True,
+        )
+        person = Person(name="Plain Person Name", email=email)
+        db.add_all([user, person])
+        db.commit()
+        db.refresh(person)
+
+        db.add(
+            Activity(
+                person_id=person.id,
+                staff_name="Plain Staff Name",
+                activity_type="note",
+                description="hello",
+            )
+        )
+        db.commit()
+
+        raw_user = db.execute(
+            text("SELECT full_name FROM users WHERE email = :email"),
+            {"email": encrypt_deterministic(email)},
+        ).scalar_one()
+        raw_person = db.execute(
+            text("SELECT name FROM persons WHERE email = :email"),
+            {"email": encrypt_deterministic(email)},
+        ).scalar_one()
+        raw_staff = db.execute(
+            text("SELECT staff_name FROM activities WHERE staff_name = :name"),
+            {"name": "Plain Staff Name"},
+        ).scalar_one()
+
+        assert raw_user == "Plain User Name"
+        assert raw_person == "Plain Person Name"
+        assert raw_staff == "Plain Staff Name"
+    finally:
+        db.rollback()
+        encrypted_email = encrypt_deterministic(email)
+        db.query(Activity).filter(
+            Activity.staff_name == "Plain Staff Name"
+        ).delete()
+        db.query(Person).filter(Person.email == encrypted_email).delete()
+        db.query(User).filter(User.email == encrypted_email).delete()
+        db.commit()
         db.close()
 
 

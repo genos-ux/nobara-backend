@@ -24,7 +24,7 @@ class Person(Base):
     __tablename__ = "persons"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    name: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str] = mapped_column(
         DeterministicEncryptedString, unique=True, nullable=False, index=True,
     )
@@ -50,7 +50,7 @@ class Activity(Base):
     person_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("persons.id", ondelete="CASCADE"), nullable=False,
     )
-    staff_name: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
+    staff_name: Mapped[str | None] = mapped_column(String, nullable=True)
     activity_type: Mapped[str] = mapped_column(String, nullable=False)
     subject: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     description: Mapped[str] = mapped_column(EncryptedString, nullable=False)

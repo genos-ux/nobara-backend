@@ -14,10 +14,8 @@ encrypted values.
 | Table | Fields | Scheme |
 |-------|--------|--------|
 | `users` | `email` | Deterministic (AES-SIV) |
-| `users` | `full_name` | Randomized (Fernet) |
 | `persons` | `email` | Deterministic (AES-SIV) |
-| `persons` | `name` | Randomized (Fernet) |
-| `activities` | `staff_name`, `subject`, `description` | Randomized (Fernet) |
+| `activities` | `subject`, `description` | Randomized (Fernet) |
 | `audit_logs` | `actor_email`, `detail`, `ip_address` | Randomized (Fernet) |
 | `notifications` | `title`, `message` | Randomized (Fernet) |
 
@@ -26,8 +24,9 @@ Email addresses use deterministic encryption so equality lookups
 person matching keep working. This leaks equality: the database can tell that
 two rows contain the same email address. Uniqueness already exposes that.
 
-Public post content, IDs, timestamps, statuses, and role/permission names are
-stored in plaintext.
+Names (`users.full_name`, `persons.name`, `activities.staff_name`), public post
+content, IDs, timestamps, statuses, and role/permission names are stored in
+plaintext. Protect those columns with database access controls.
 
 ---
 
@@ -68,6 +67,9 @@ values cannot be decrypted by the new code, and ciphertext may exceed the old
 The migration requires `ENCRYPTION_KEY` to be set. It is idempotent: values
 that already carry a ciphertext prefix are skipped. The downgrade path decrypts
 values back to plaintext and restores the original column types.
+
+A later migration decrypts name columns back to plaintext while leaving emails,
+message content, audit details, and notification text encrypted.
 
 ---
 
