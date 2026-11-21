@@ -10,6 +10,7 @@ This folder contains feature-by-feature integration guides for frontend develope
 | [Users & Invitations](./users-and-invitations.md) | User management, inviting new users, accepting invitations |
 | [Roles & Permissions](./roles-and-permissions.md) | RBAC — listing, creating, updating, and deleting roles |
 | [Contact Form](./contact.md) | Public contact form submissions saved to the CRM |
+| [Security](./security.md) | Encryption at rest, key management, and limitations |
 | [Posts](./posts.md) | Post lifecycle: drafts, review workflow, publish/unpublish |
 | [Notifications](./notifications.md) | REST endpoints and real-time SSE stream |
 

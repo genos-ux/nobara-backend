@@ -12,7 +12,6 @@ from nabora_crm.modules.posts.models import Post
 from nabora_crm.modules.roles.repository import get_role_by_id
 from nabora_crm.modules.users.models import User
 from nabora_crm.modules.users.repository import (
-    count_users,
     get_posts_by_author_ids,
     get_user_by_email,
     get_user_by_id,
@@ -168,12 +167,33 @@ def list_users(
     offset: int = 0,
     limit: int | None = None,
 ) -> tuple[list[tuple[User, list[Post]]], int]:
-    """Return users paired with their posts, plus the total count."""
-    users = list_user_records(
-        db, search=search, role_id=role_id, offset=offset, limit=limit
-    )
+    """Return users paired with their posts, plus the total count.
+
+    Names and emails are encrypted, so substring search and name/email sorting
+    happen in Python on the decrypted values. This is fine for a staff-sized
+    user table but does not scale to very large user counts.
+    """
+    users = list_user_records(db, role_id=role_id)
+
+    if search and search.strip():
+        needle = search.strip().casefold()
+        users = [
+            user
+            for user in users
+            if needle in (user.full_name or "").casefold()
+            or needle in user.email.casefold()
+        ]
+
+    users.sort(key=lambda user: ((user.full_name or "").casefold(), user.email.casefold()))
+
+    total = len(users)
+    if offset:
+        users = users[offset:]
+    if limit is not None:
+        users = users[:limit]
+
     posts_by_author: dict[uuid.UUID, list[Post]] = defaultdict(list)
     for post in get_posts_by_author_ids(db, [u.id for u in users]):
         posts_by_author[post.author_id].append(post)
     results = [(u, posts_by_author[u.id]) for u in users]
-    return results, count_users(db, search=search, role_id=role_id)
+    return results, total

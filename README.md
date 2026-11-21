@@ -149,6 +149,7 @@ Copy `.env.example` to `.env` and fill in:
 | `SECRET_KEY` | JWT access token signing key |
 | `REFRESH_SECRET_KEY` | JWT refresh token signing key |
 | `ALGORITHM` | JWT algorithm (default: HS256) |
+| `ENCRYPTION_KEY` | Fernet key used to encrypt sensitive database fields at rest (required) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL |
 | `ADMIN_EMAIL` | Initial admin account email |
@@ -198,6 +199,9 @@ Migrations are managed with Alembic. The initial migration captures the current 
 uv run alembic upgrade head
 ```
 
+> Set `ENCRYPTION_KEY` before running migrations. The latest migration encrypts
+> existing sensitive columns; see [docs/security.md](./docs/security.md).
+
 **Create a new migration** after model changes:
 ```bash
 uv run alembic revision --autogenerate -m "description of change"
@@ -225,6 +229,11 @@ uv run alembic upgrade head && uvicorn nabora_crm.main:app --host 0.0.0.0 --port
 ```
 
 The start command now runs migrations before starting the server. All environment variables and database connections remain compatible.
+
+> **Required:** add `ENCRYPTION_KEY` to the Render environment before deploying
+> the encryption migration. Back it up in a secure location. If the key is
+> missing the start command fails; if it is lost the encrypted data cannot be
+> recovered.
 
 > **Note:** API endpoints are now prefixed with `/v1` (e.g. `/v1/auth/login` instead of `/auth/login`). The root (`/`), health (`/health`), and admin (`/admin/*`) paths are unversioned. Update any frontend clients to use the new paths.
 

@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, Uuid, false, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Uuid, false, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from nabora_crm.core.encryption import EncryptedString
 from nabora_crm.db.base import Base
 
 
@@ -38,8 +39,8 @@ class Notification(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True,
     )
     type: Mapped[str] = mapped_column(String(50), nullable=False)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    message: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(EncryptedString, nullable=False)
+    message: Mapped[str] = mapped_column(EncryptedString, nullable=False)
     post_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("posts.id", ondelete="CASCADE"), nullable=True, index=True,
     )

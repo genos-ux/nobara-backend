@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from nabora_crm.core.encryption import EncryptedString
 from nabora_crm.db.base import Base
 
 
@@ -61,7 +62,7 @@ class AuditLog(Base):
         nullable=True,
         index=True,
     )
-    actor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    actor_email: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
 
     # What happened
     action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -71,10 +72,10 @@ class AuditLog(Base):
     resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Human-readable description for display in the admin log
-    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
 
     # Client IP address (best-effort, may be None in tests)
-    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), index=True

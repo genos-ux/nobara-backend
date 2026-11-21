@@ -6,6 +6,11 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 os.environ.setdefault("REFRESH_SECRET_KEY", "test-refresh-secret-for-testing-only")
 os.environ.setdefault("ALGORITHM", "HS256")
+# Fixed test key — never use this outside the test suite.
+os.environ.setdefault(
+    "ENCRYPTION_KEY",
+    "-WplocRXQVx4LaPLMa5ClCQh092FwARiNuHO1RXYSNs=",
+)
 os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 os.environ.setdefault("REFRESH_TOKEN_EXPIRE_DAYS", "7")
 os.environ.setdefault("ADMIN_EMAIL", "admin@test.example")

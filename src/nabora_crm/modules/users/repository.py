@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from nabora_crm.modules.posts.models import Post
@@ -20,35 +20,32 @@ def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
 
 def _user_conditions(
     *,
-    search: str | None = None,
     role_id: uuid.UUID | None = None,
 ) -> list:
     conditions = []
     if role_id is not None:
         conditions.append(User.role_id == role_id)
-    if search:
-        pattern = f"%{search.strip()}%"
-        conditions.append(
-            or_(User.full_name.ilike(pattern), User.email.ilike(pattern))
-        )
     return conditions
 
 
 def list_users(
     db: Session,
     *,
-    search: str | None = None,
     role_id: uuid.UUID | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> list[User]:
-    """Return users matching the search and role filters, with pagination."""
+    """Return users filtered by role, with pagination.
+
+    Name and email cannot be searched in SQL because they are encrypted.
+    Callers that need search must filter the decrypted rows themselves.
+    """
     stmt = (
         select(User)
         .join(Role, User.role_id == Role.id)
-        .where(*_user_conditions(search=search, role_id=role_id))
+        .where(*_user_conditions(role_id=role_id))
         .options(selectinload(User.role))
-        .order_by(User.full_name, User.email)
+        .order_by(User.id)
     )
     if offset:
         stmt = stmt.offset(offset)
@@ -60,15 +57,14 @@ def list_users(
 def count_users(
     db: Session,
     *,
-    search: str | None = None,
     role_id: uuid.UUID | None = None,
 ) -> int:
-    """Count users matching the search and role filters."""
+    """Count users matching the role filter."""
     stmt = (
         select(func.count())
         .select_from(User)
         .join(Role, User.role_id == Role.id)
-        .where(*_user_conditions(search=search, role_id=role_id))
+        .where(*_user_conditions(role_id=role_id))
     )
     return db.execute(stmt).scalar_one()
 

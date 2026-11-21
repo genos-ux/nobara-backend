@@ -169,4 +169,4 @@ GET /v1/audit-logs?since=2026-11-16T00:00:00Z&until=2026-11-16T23:59:59Z
 - **Append-only.** There is no API to update or delete audit log entries. Entries are only written by the backend.
 - **Best-effort.** Audit writes happen after the main transaction commits. If an audit write fails, the original action is not rolled back — the failure is logged at the server level.
 - **Actor is preserved.** `actor_email` is stored at write time, so renaming or deleting a user does not erase their history from the log. `actor_id` is set to `null` via a `SET NULL` foreign key when a user is deleted, but `actor_email` remains.
-- **No PII scrubbing.** Email addresses appear in the log. If you need to comply with a right-to-erasure request, manually nullify `actor_email` in the database for the relevant entries after deleting the user.
+- **Encrypted at rest.** `actor_email`, `detail`, and `ip_address` are encrypted in the database. API responses return the decrypted values. If you need to comply with a right-to-erasure request, nullify `actor_email` (and redact `detail`) for the relevant entries after deleting the user.

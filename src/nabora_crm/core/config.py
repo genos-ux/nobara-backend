@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_DAYS: int
 
+    # Key used to encrypt sensitive database fields at rest.
+    # Must be a Fernet key; see core/encryption.py.
+    ENCRYPTION_KEY: str
+
     # Admin account
     ADMIN_EMAIL: str
     ADMIN_PASSWORD: str
